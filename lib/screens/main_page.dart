@@ -1,0 +1,1176 @@
+import 'dart:convert';
+import 'dart:ui';
+
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../app_theme.dart';
+import 'game_screen.dart';
+
+enum _Tab { game, home, settings }
+
+class MainPage extends StatefulWidget {
+  const MainPage({super.key, required this.onLogout});
+  final VoidCallback onLogout;
+
+  @override
+  State<MainPage> createState() => _MainPageState();
+}
+
+class _MainPageState extends State<MainPage>
+    with SingleTickerProviderStateMixin {
+  _Tab _tab = _Tab.game;
+  final bool _gameStarted = false;
+  bool _showGame = false;
+
+  String _displayName = 'Graczu';
+  String _email = '';
+
+  late final AnimationController _pulse;
+
+  static const _currentUserStats = {'score': 5100, 'wins': 27};
+
+  static final List<_Friend> _mockFriends = [
+    _Friend(1, 'Anna K.', 'AK', 4820, 23,
+        const LinearGradient(colors: [AppColors.yellow400, Color(0xFFFB923C)])),
+    _Friend(2, 'Marek W.', 'MW', 4210, 19,
+        const LinearGradient(colors: [AppColors.gray300, AppColors.gray400])),
+    _Friend(3, 'Julia P.', 'JP', 3950, 17,
+        const LinearGradient(colors: [AppColors.amber500, AppColors.amber600])),
+    _Friend(4, 'Tomek R.', 'TR', 3400, 14,
+        const LinearGradient(colors: [AppColors.blue400, AppColors.blue500])),
+    _Friend(5, 'Kasia M.', 'KM', 2900, 11,
+        const LinearGradient(colors: [AppColors.purple400, AppColors.purple500])),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+    _loadUser();
+  }
+
+  Future<void> _loadUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('currentUser');
+    if (raw == null) return;
+    try {
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      setState(() {
+        _displayName =
+            (data['name'] as String?) ?? (data['email'] as String?) ?? 'Graczu';
+        _email = (data['email'] as String?) ?? '';
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  String get _initials {
+    final parts = _displayName.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) {
+      return parts.first.length >= 2
+          ? parts.first.substring(0, 2).toUpperCase()
+          : parts.first.toUpperCase();
+    }
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
+  String _formatScore(int v) {
+    final s = v.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+      buf.write(s[i]);
+    }
+    return buf.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBody: true,
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: SafeArea(
+                bottom: false,
+                child: switch (_tab) {
+                  _Tab.game => _buildGameTab(),
+                  _Tab.home => _buildHomeTab(),
+                  _Tab.settings => _buildSettingsTab(),
+                },
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _bottomNav(),
+            ),
+            if (_showGame)
+              Positioned.fill(
+                child: GameScreen(onClose: () => setState(() => _showGame = false)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGameTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 120),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Witaj,',
+                          style: TextStyle(
+                              color: AppColors.purple300, fontSize: 14)),
+                      Text(_displayName,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _pulseDot(AppColors.green400),
+                      const SizedBox(width: 8),
+                      const Text('Podłączono',
+                          style: TextStyle(
+                              color: Colors.white, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            _heroCard(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _heroCard() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withValues(alpha: 0.15),
+                  Colors.white.withValues(alpha: 0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
+            ),
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    gradient: AppColors.ctaGradient,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.orange500.withValues(alpha: 0.30),
+                        blurRadius: 22,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.gavel,
+                      color: Colors.white, size: 40),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Pora zmierzyć się\nz dzisiejszą grą!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: Colors.white, fontSize: 22, height: 1.25),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Twój czujnik MetaMotion jest gotowy.\nSprawdź swoje możliwości!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.purple300, fontSize: 14),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    _statTile('${_currentUserStats['wins']}', 'Wygrane'),
+                    const SizedBox(width: 12),
+                    _statTile(
+                        _formatScore(_currentUserStats['score']!), 'Punkty'),
+                    const SizedBox(width: 12),
+                    _statTile('#1', 'Ranking'),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                if (!_gameStarted)
+                  GestureDetector(
+                    onTap: () => setState(() => _showGame = true),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        gradient: AppColors.ctaGradient,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.orange500.withValues(alpha: 0.40),
+                            blurRadius: 22,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.sports_esports,
+                              color: Colors.white, size: 24),
+                          SizedBox(width: 12),
+                          Text('Zagraj w grę',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statTile(String value, String label) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Text(value,
+                style: const TextStyle(
+                    color: AppColors.yellow400,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600)),
+            Text(label,
+                style: TextStyle(color: AppColors.purple300, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeTab() {
+    final allRankings = <_RankItem>[
+      _RankItem(
+        name: _displayName,
+        avatar: _initials,
+        score: _currentUserStats['score']!,
+        wins: _currentUserStats['wins']!,
+        gradient: const LinearGradient(
+          colors: [AppColors.indigo500, AppColors.purple600],
+        ),
+        isMe: true,
+      ),
+      ..._mockFriends.map((f) => _RankItem(
+            name: f.name,
+            avatar: f.avatar,
+            score: f.score,
+            wins: f.wins,
+            gradient: f.gradient,
+            isMe: false,
+          )),
+    ]..sort((a, b) => b.score.compareTo(a.score));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Znajomi',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600)),
+                    Text('Rywalizuj z innymi',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: AppColors.purple300, fontSize: 14)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: _openAddFriendDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.indigoPurpleGradient,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.purple500.withValues(alpha: 0.30),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.person_add_alt_1,
+                          color: Colors.white, size: 16),
+                      SizedBox(width: 8),
+                      Text('Dodaj znajomych',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _myPositionCard(allRankings),
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 12),
+            child: Text('Ranking znajomych',
+                style: TextStyle(color: AppColors.purple300, fontSize: 14)),
+          ),
+          for (int i = 0; i < allRankings.length; i++) ...[
+            _rankingTile(allRankings[i], i + 1),
+            const SizedBox(height: 8),
+          ],
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 12),
+            child: Text('Twoje statystyki vs. znajomi',
+                style: TextStyle(color: AppColors.purple300, fontSize: 14)),
+          ),
+          _statsCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _myPositionCard(List<_RankItem> ranks) {
+    final myRank = ranks.indexWhere((r) => r.isMe) + 1;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.indigo500.withValues(alpha: 0.30),
+            AppColors.purple600.withValues(alpha: 0.30),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.indigo400.withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Twoja pozycja w rankingu',
+              style: TextStyle(color: AppColors.purple300, fontSize: 12)),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.indigo500, AppColors.purple600],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: Text(_initials,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(_displayName,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                        const SizedBox(width: 4),
+                        Text('(Ty)',
+                            style: TextStyle(
+                                color: AppColors.purple300, fontSize: 12)),
+                      ],
+                    ),
+                    Text(
+                        '${_currentUserStats['wins']} wygranych · ${_formatScore(_currentUserStats['score']!)} pkt',
+                        style: TextStyle(
+                            color: AppColors.purple300, fontSize: 12)),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.yellow400.withValues(alpha: 0.20),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text('#$myRank',
+                    style: const TextStyle(
+                        color: AppColors.yellow400,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rankingTile(_RankItem r, int rank) {
+    Widget rankBadge() {
+      if (rank == 1) return const Text('🥇', style: TextStyle(fontSize: 20));
+      if (rank == 2) return const Text('🥈', style: TextStyle(fontSize: 20));
+      if (rank == 3) return const Text('🥉', style: TextStyle(fontSize: 20));
+      return Text('#$rank',
+          style: TextStyle(
+              color: AppColors.purple400,
+              fontSize: 14,
+              fontWeight: FontWeight.w500));
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: r.isMe
+            ? AppColors.indigo500.withValues(alpha: 0.20)
+            : Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: r.isMe
+                ? AppColors.indigo400.withValues(alpha: 0.30)
+                : Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(width: 28, child: Center(child: rankBadge())),
+          const SizedBox(width: 12),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: r.gradient,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
+            child: Text(r.avatar,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(r.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500)),
+                    ),
+                    if (r.isMe) ...[
+                      const SizedBox(width: 4),
+                      Text('(Ty)',
+                          style: TextStyle(
+                              color: AppColors.purple400, fontSize: 12)),
+                    ],
+                  ],
+                ),
+                Text('${r.wins} wygranych',
+                    style: TextStyle(
+                        color: AppColors.purple400, fontSize: 12)),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(_formatScore(r.score),
+                  style: const TextStyle(
+                      color: AppColors.yellow400,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600)),
+              Text('pkt',
+                  style: TextStyle(
+                      color: AppColors.purple400, fontSize: 12)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statsCard() {
+    final stats = const [
+      _Stat('Średnia wygrane/tydzień', 6.8, 4.2, ''),
+      _Stat('Najdłuższa seria', 8, 5, ''),
+      _Stat('Łączny czas gry (h)', 24, 16, 'h'),
+    ];
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < stats.length; i++) ...[
+            if (i > 0) const SizedBox(height: 16),
+            _statBar(stats[i]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _statBar(_Stat s) {
+    final ratio = (s.me / (s.me + s.avg)) * 1.3;
+    final width = ratio.clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(s.label,
+                style: TextStyle(color: AppColors.purple300, fontSize: 12)),
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500),
+                children: [
+                  const TextSpan(text: 'Ty: '),
+                  TextSpan(
+                    text: '${_fmt(s.me)}${s.unit}',
+                    style: const TextStyle(color: AppColors.yellow400),
+                  ),
+                  TextSpan(text: ' · Śr.: ${_fmt(s.avg)}${s.unit}'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            height: 8,
+            color: Colors.white.withValues(alpha: 0.10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: width,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppColors.indigo400, AppColors.purple500],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _fmt(num v) {
+    if (v == v.toInt()) return v.toInt().toString();
+    return v.toString();
+  }
+
+  Widget _buildSettingsTab() {
+    final items = const [
+      _SettingItem('Urządzenie Bluetooth', 'MetaMotion', '📡'),
+      _SettingItem('Tryb symulacji', 'Włączony', '🔧'),
+      _SettingItem('Powiadomienia', 'Włączone', '🔔'),
+      _SettingItem('Język aplikacji', 'Polski', '🌐'),
+    ];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Ustawienia',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600)),
+          Text('Zarządzaj swoim kontem',
+              style: TextStyle(color: AppColors.purple300, fontSize: 14)),
+          const SizedBox(height: 32),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withValues(alpha: 0.10),
+                  Colors.white.withValues(alpha: 0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppColors.indigo500, AppColors.purple600],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(_initials,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_displayName,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600)),
+                      Text(_email,
+                          style: TextStyle(
+                              color: AppColors.purple300, fontSize: 14)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: AppColors.green400,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text('Aktywny',
+                              style: TextStyle(
+                                  color: AppColors.green400, fontSize: 12)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          for (final item in items) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.10)),
+                ),
+                child: Row(
+                  children: [
+                    Text(item.icon, style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(item.label,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 14)),
+                    ),
+                    Text(item.value,
+                        style: TextStyle(
+                            color: AppColors.purple300, fontSize: 14)),
+                    const SizedBox(width: 8),
+                    Icon(Icons.chevron_right,
+                        size: 18, color: AppColors.purple400),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Center(
+            child: Text('The Shape v1.0.0',
+                style: TextStyle(color: AppColors.purple500, fontSize: 12)),
+          ),
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: _openLogoutDialog,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: AppColors.red500.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                    color: AppColors.red500.withValues(alpha: 0.30)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.logout, color: AppColors.red400, size: 20),
+                  const SizedBox(width: 12),
+                  Text('Wyloguj się',
+                      style: TextStyle(
+                          color: AppColors.red400,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bottomNav() {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            12,
+            24,
+            12 + MediaQuery.of(context).padding.bottom,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.40),
+            border: Border(
+              top: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _navItem(_Tab.game, Icons.sports_esports, 'Gra'),
+              _navItem(_Tab.home, Icons.home, 'Znajomi'),
+              _navItem(_Tab.settings, Icons.menu, 'Ustawienia'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem(_Tab tab, IconData icon, String label) {
+    final selected = _tab == tab;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _tab = tab),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? Colors.white.withValues(alpha: 0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon,
+                size: 24,
+                color: selected ? AppColors.yellow400 : AppColors.purple400),
+            const SizedBox(height: 4),
+            Text(label,
+                style: TextStyle(
+                    color: selected ? Colors.white : AppColors.purple400,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openLogoutDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: AppColors.gray900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.20)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Wylogować się?',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Text('Czy na pewno chcesz się wylogować z aplikacji?',
+                  style: TextStyle(
+                      color: AppColors.purple300, fontSize: 14)),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _outlineButton(
+                      label: 'Anuluj',
+                      onTap: () => Navigator.of(ctx).pop()),
+                  const SizedBox(width: 8),
+                  _destructiveButton(
+                    label: 'Wyloguj',
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      widget.onLogout();
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAddFriendDialog() async {
+    final controller = TextEditingController();
+    bool added = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocalState) => Dialog(
+          backgroundColor: AppColors.gray900,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.20)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.person_add_alt_1,
+                        color: AppColors.purple400, size: 20),
+                    const SizedBox(width: 8),
+                    const Text('Dodaj znajomego',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text('Wpisz adres email znajomego, aby wysłać zaproszenie.',
+                    style: TextStyle(
+                        color: AppColors.purple300, fontSize: 14)),
+                const SizedBox(height: 16),
+                if (!added)
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.emailAddress,
+                    style:
+                        const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'email@znajomy.pl',
+                      hintStyle: TextStyle(
+                          color: AppColors.purple400, fontSize: 14),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.20)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.20)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: AppColors.purple400),
+                      ),
+                    ),
+                    onChanged: (_) => setLocalState(() {}),
+                  )
+                else
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Column(
+                        children: [
+                          const Text('✅', style: TextStyle(fontSize: 36)),
+                          const SizedBox(height: 8),
+                          Text('Zaproszenie wysłane!',
+                              style: TextStyle(
+                                  color: AppColors.green400,
+                                  fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (!added) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      _outlineButton(
+                          label: 'Anuluj',
+                          onTap: () => Navigator.of(ctx).pop()),
+                      const SizedBox(width: 8),
+                      _gradientButtonSmall(
+                        label: 'Wyślij zaproszenie',
+                        enabled: controller.text.trim().isNotEmpty,
+                        onTap: () {
+                          if (controller.text.trim().isEmpty) return;
+                          setLocalState(() => added = true);
+                          final nav = Navigator.of(ctx);
+                          Future.delayed(const Duration(milliseconds: 1500),
+                              () {
+                            if (nav.canPop()) nav.pop();
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _outlineButton(
+      {required String label, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
+        ),
+        child: Text(label,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500)),
+      ),
+    );
+  }
+
+  Widget _destructiveButton(
+      {required String label, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFD4183D),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(label,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500)),
+      ),
+    );
+  }
+
+  Widget _gradientButtonSmall(
+      {required String label,
+      required bool enabled,
+      required VoidCallback onTap}) {
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            gradient: AppColors.indigoPurpleGradient,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(label,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500)),
+        ),
+      ),
+    );
+  }
+
+  Widget _pulseDot(Color color) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, child) => Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.5 + 0.5 * _pulse.value),
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+}
+
+class _Friend {
+  final int id;
+  final String name;
+  final String avatar;
+  final int score;
+  final int wins;
+  final LinearGradient gradient;
+  const _Friend(this.id, this.name, this.avatar, this.score, this.wins,
+      this.gradient);
+}
+
+class _RankItem {
+  final String name;
+  final String avatar;
+  final int score;
+  final int wins;
+  final LinearGradient gradient;
+  final bool isMe;
+  const _RankItem({
+    required this.name,
+    required this.avatar,
+    required this.score,
+    required this.wins,
+    required this.gradient,
+    required this.isMe,
+  });
+}
+
+class _Stat {
+  final String label;
+  final num me;
+  final num avg;
+  final String unit;
+  const _Stat(this.label, this.me, this.avg, this.unit);
+}
+
+class _SettingItem {
+  final String label;
+  final String value;
+  final String icon;
+  const _SettingItem(this.label, this.value, this.icon);
+}

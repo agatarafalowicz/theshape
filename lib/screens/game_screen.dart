@@ -1,3 +1,4 @@
+import '../services/api_service.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -54,8 +55,14 @@ enum _Phase { learning, bravo, ready, playing, finished }
 enum _RoundResult { none, correct, timeout }
 
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key, required this.onClose});
+  const GameScreen({
+    super.key,
+    required this.onClose,
+    required this.userId,
+  });
+
   final VoidCallback onClose;
+  final int? userId;
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -100,6 +107,27 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _resultTimer?.cancel();
     _pulse.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveGameResult() async {
+    debugPrint('SAVE GAME START');
+    if (widget.userId == null) return;
+
+    debugPrint(
+      'user=${widget.userId} score=$_score time=$_totalTimeUsed',
+    );
+
+    try {
+      await ApiService.saveGame(
+        userId: widget.userId!,
+        points: _score,
+        length: _totalTimeUsed,
+        won: _score >= (_totalRounds / 2),
+        livesLeft: null,
+      );
+    } catch (e) {
+      debugPrint('SAVE GAME ERROR: $e');
+    }
   }
 
   void _scheduleLearningAdvance() {
@@ -147,7 +175,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       final next = _gameIdx + 1;
       setState(() => _roundResult = _RoundResult.none);
       if (next >= _totalRounds) {
-        setState(() => _phase = _Phase.finished);
+        _saveGameResult();
+
+        setState(() {
+          _phase = _Phase.finished;
+        });
       } else {
         setState(() {
           _gameIdx = next;

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:ui';
+import '../services/api_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,24 +25,16 @@ class _MainPageState extends State<MainPage>
   bool _showGame = false;
 
   String _displayName = 'Graczu';
-  String _email = '';
+  int? _userId;
+  int? get userId => _userId;
+
+  Map<String, dynamic>? _stats;
+
+  List<dynamic> _leaderboard = [];
+
+  bool _loadingStats = true;
 
   late final AnimationController _pulse;
-
-  static const _currentUserStats = {'score': 5100, 'wins': 27};
-
-  static final List<_Friend> _mockFriends = [
-    _Friend(1, 'Anna K.', 'AK', 4820, 23,
-        const LinearGradient(colors: [AppColors.yellow400, Color(0xFFFB923C)])),
-    _Friend(2, 'Marek W.', 'MW', 4210, 19,
-        const LinearGradient(colors: [AppColors.gray300, AppColors.gray400])),
-    _Friend(3, 'Julia P.', 'JP', 3950, 17,
-        const LinearGradient(colors: [AppColors.amber500, AppColors.amber600])),
-    _Friend(4, 'Tomek R.', 'TR', 3400, 14,
-        const LinearGradient(colors: [AppColors.blue400, AppColors.blue500])),
-    _Friend(5, 'Kasia M.', 'KM', 2900, 11,
-        const LinearGradient(colors: [AppColors.purple400, AppColors.purple500])),
-  ];
 
   @override
   void initState() {
@@ -50,21 +43,59 @@ class _MainPageState extends State<MainPage>
       vsync: this,
       duration: const Duration(milliseconds: 1100),
     )..repeat(reverse: true);
-    _loadUser();
+    _loadUser().then((_) {
+      _loadStats();
+      _loadLeaderboard();
+    });
   }
 
   Future<void> _loadUser() async {
     final prefs = await SharedPreferences.getInstance();
+
     final raw = prefs.getString('currentUser');
+
     if (raw == null) return;
+
     try {
       final data = jsonDecode(raw) as Map<String, dynamic>;
+
       setState(() {
+        _userId = data['user_id'] as int?;
         _displayName =
-            (data['name'] as String?) ?? (data['email'] as String?) ?? 'Graczu';
-        _email = (data['email'] as String?) ?? '';
+            (data['user_name'] as String?) ?? 'Graczu';
       });
     } catch (_) {}
+  }
+
+  Future<void> _loadStats() async {
+    if (_userId == null) return;
+
+    try {
+      final stats = await ApiService.getStats(_userId!);
+
+      setState(() {
+        _stats = stats;
+        _loadingStats = false;
+      });
+    } catch (e) {
+      debugPrint('LOAD STATS ERROR: $e');
+
+      setState(() {
+        _loadingStats = false;
+      });
+    }
+  }
+
+  Future<void> _loadLeaderboard() async {
+    try {
+      final leaderboard = await ApiService.getLeaderboard();
+
+      setState(() {
+        _leaderboard = leaderboard;
+      });
+    } catch (e) {
+      debugPrint('LOAD LEADERBOARD ERROR: $e');
+    }
   }
 
   @override
@@ -119,7 +150,12 @@ class _MainPageState extends State<MainPage>
             ),
             if (_showGame)
               Positioned.fill(
-                child: GameScreen(onClose: () => setState(() => _showGame = false)),
+                child: GameScreen(
+                  userId: _userId,
+                  onClose: () => setState(
+                        () => _showGame = false,
+                  ),
+                ),
               ),
           ],
         ),
@@ -239,12 +275,22 @@ class _MainPageState extends State<MainPage>
                 const SizedBox(height: 24),
                 Row(
                   children: [
-                    _statTile('${_currentUserStats['wins']}', 'Wygrane'),
+                    _statTile(
+                      '${_stats?['wins'] ?? 0}',
+                      'Wygrane',
+                    ),
                     const SizedBox(width: 12),
                     _statTile(
-                        _formatScore(_currentUserStats['score']!), 'Punkty'),
+                      _formatScore(
+                        (_stats?['rank']?['points'] ?? 0) as int,
+                      ),
+                      'Punkty',
+                    ),
                     const SizedBox(width: 12),
-                    _statTile('#1', 'Ranking'),
+                    _statTile(
+                      '#${_stats?['rank']?['rank'] ?? '-'}',
+                      'Ranking',
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -312,26 +358,31 @@ class _MainPageState extends State<MainPage>
   }
 
   Widget _buildHomeTab() {
-    final allRankings = <_RankItem>[
-      _RankItem(
-        name: _displayName,
-        avatar: _initials,
-        score: _currentUserStats['score']!,
-        wins: _currentUserStats['wins']!,
+
+
+    if (_loadingStats) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    final allRankings = _leaderboard.map((player) {
+      return _RankItem(
+        name: player['user_name'],
+        avatar: player['user_name']
+            .substring(0, 2)
+            .toUpperCase(),
+        score: player['points'],
+        wins: player['wins'] ?? 0,
         gradient: const LinearGradient(
-          colors: [AppColors.indigo500, AppColors.purple600],
+          colors: [
+            AppColors.indigo500,
+            AppColors.purple600,
+          ],
         ),
-        isMe: true,
-      ),
-      ..._mockFriends.map((f) => _RankItem(
-            name: f.name,
-            avatar: f.avatar,
-            score: f.score,
-            wins: f.wins,
-            gradient: f.gradient,
-            isMe: false,
-          )),
-    ]..sort((a, b) => b.score.compareTo(a.score));
+        isMe: player['user_id'] == _userId,
+      );
+    }).toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
@@ -475,7 +526,7 @@ class _MainPageState extends State<MainPage>
                       ],
                     ),
                     Text(
-                        '${_currentUserStats['wins']} wygranych · ${_formatScore(_currentUserStats['score']!)} pkt',
+                        '${_stats?['wins'] ?? 0} wygranych · ${_formatScore((_stats?['rank']?['points'] ?? 0) as int)} pkt',
                         style: TextStyle(
                             color: AppColors.purple300, fontSize: 12)),
                   ],
@@ -736,9 +787,6 @@ class _MainPageState extends State<MainPage>
                               color: Colors.white,
                               fontSize: 18,
                               fontWeight: FontWeight.w600)),
-                      Text(_email,
-                          style: TextStyle(
-                              color: AppColors.purple300, fontSize: 14)),
                       const SizedBox(height: 4),
                       Row(
                         children: [

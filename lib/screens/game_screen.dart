@@ -46,10 +46,7 @@ class _Pair {
 List<_Pair> _buildMapping() {
   final mov = List<_Movement>.from(_movements);
   mov.shuffle(Random());
-  return List<_Pair>.generate(
-    _shapes.length,
-    (i) => _Pair(_shapes[i], mov[i]),
-  );
+  return List<_Pair>.generate(_shapes.length, (i) => _Pair(_shapes[i], mov[i]));
 }
 
 enum _Phase { learning, bravo, ready, playing, finished }
@@ -64,8 +61,7 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen>
-    with TickerProviderStateMixin {
+class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   late List<_Pair> _mapping;
   _Phase _phase = _Phase.learning;
   int _learnIdx = 0;
@@ -75,6 +71,8 @@ class _GameScreenState extends State<GameScreen>
   int _score = 0;
   int _shapeTimeLeft = _shapeSeconds;
   _RoundResult _roundResult = _RoundResult.none;
+  int _totalTimeUsed = 0; // seconds
+  List<int> _roundTimes = [];
 
   Timer? _learnTimer;
   Timer? _bravoTimer;
@@ -132,10 +130,17 @@ class _GameScreenState extends State<GameScreen>
 
   void _advanceRound(bool wasCorrect) {
     _shapeTicker?.cancel();
+    int usedSeconds;
+    if (!wasCorrect) {
+      usedSeconds = _shapeSeconds; // timeout counts as full time
+    } else {
+      usedSeconds = (_shapeSeconds - _shapeTimeLeft).clamp(0, _shapeSeconds);
+    }
     setState(() {
       if (wasCorrect) _score++;
-      _roundResult =
-          wasCorrect ? _RoundResult.correct : _RoundResult.timeout;
+      _roundResult = wasCorrect ? _RoundResult.correct : _RoundResult.timeout;
+      _totalTimeUsed += usedSeconds;
+      _roundTimes.add(usedSeconds);
     });
     _resultTimer = Timer(const Duration(milliseconds: 800), () {
       if (!mounted) return;
@@ -181,6 +186,8 @@ class _GameScreenState extends State<GameScreen>
       _gameShapes = shapes;
       _gameIdx = 0;
       _score = 0;
+      _totalTimeUsed = 0;
+      _roundTimes.clear();
       _shapeTimeLeft = _shapeSeconds;
       _roundResult = _RoundResult.none;
       _phase = _Phase.playing;
@@ -196,13 +203,16 @@ class _GameScreenState extends State<GameScreen>
       _phase = _Phase.learning;
       _score = 0;
       _roundResult = _RoundResult.none;
+      _totalTimeUsed = 0;
+      _roundTimes.clear();
     });
     _scheduleLearningAdvance();
   }
 
   @override
   Widget build(BuildContext context) {
-    final showSheet = _phase == _Phase.learning ||
+    final showSheet =
+        _phase == _Phase.learning ||
         _phase == _Phase.playing ||
         _phase == _Phase.bravo;
 
@@ -241,8 +251,8 @@ class _GameScreenState extends State<GameScreen>
                 color: i < _learnIdx
                     ? AppColors.green400
                     : i == _learnIdx
-                        ? AppColors.yellow400
-                        : Colors.white.withValues(alpha: 0.20),
+                    ? AppColors.yellow400
+                    : Colors.white.withValues(alpha: 0.20),
               ),
             ),
           ],
@@ -254,21 +264,26 @@ class _GameScreenState extends State<GameScreen>
         decoration: BoxDecoration(
           color: AppColors.yellow400.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(12),
-          border:
-              Border.all(color: AppColors.yellow400.withValues(alpha: 0.30)),
+          border: Border.all(
+            color: AppColors.yellow400.withValues(alpha: 0.30),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.emoji_events,
-                color: AppColors.yellow400, size: 16),
+            const Icon(
+              Icons.emoji_events,
+              color: AppColors.yellow400,
+              size: 16,
+            ),
             const SizedBox(width: 8),
             RichText(
               text: TextSpan(
                 style: const TextStyle(
-                    color: AppColors.yellow400,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600),
+                  color: AppColors.yellow400,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
                 children: [
                   TextSpan(text: '$_score'),
                   TextSpan(
@@ -299,14 +314,12 @@ class _GameScreenState extends State<GameScreen>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.timer_outlined,
-                color: AppColors.purple300, size: 16),
+            Icon(Icons.timer_outlined, color: AppColors.purple300, size: 16),
             const SizedBox(width: 6),
             Text(
               '${_shapeTimeLeft}s',
               style: TextStyle(
-                color:
-                    _shapeTimeLeft <= 2 ? AppColors.red400 : Colors.white,
+                color: _shapeTimeLeft <= 2 ? AppColors.red400 : Colors.white,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -332,8 +345,11 @@ class _GameScreenState extends State<GameScreen>
                 color: Colors.white.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.arrow_back,
-                  color: Colors.white, size: 20),
+              child: const Icon(
+                Icons.arrow_back,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           ),
           center,
@@ -346,13 +362,12 @@ class _GameScreenState extends State<GameScreen>
   Widget _playingProgress() {
     final progress = _shapeTimeLeft / _shapeSeconds;
     final color = _shapeTimeLeft <= 2
-        ? const LinearGradient(
-            colors: [AppColors.red500, AppColors.red400])
+        ? const LinearGradient(colors: [AppColors.red500, AppColors.red400])
         : _shapeTimeLeft <= 4
-            ? const LinearGradient(
-                colors: [Color(0xFFFB923C), AppColors.yellow400])
-            : const LinearGradient(
-                colors: [AppColors.indigo400, AppColors.purple400]);
+        ? const LinearGradient(colors: [Color(0xFFFB923C), AppColors.yellow400])
+        : const LinearGradient(
+            colors: [AppColors.indigo400, AppColors.purple400],
+          );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -361,12 +376,14 @@ class _GameScreenState extends State<GameScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Runda ${min(_gameIdx + 1, _totalRounds)} / $_totalRounds',
-                  style: TextStyle(
-                      color: AppColors.purple400, fontSize: 10)),
-              Text('Poprawne: $_score',
-                  style: TextStyle(
-                      color: AppColors.purple400, fontSize: 10)),
+              Text(
+                'Runda ${min(_gameIdx + 1, _totalRounds)} / $_totalRounds',
+                style: TextStyle(color: AppColors.purple400, fontSize: 10),
+              ),
+              Text(
+                'Poprawne: $_score',
+                style: TextStyle(color: AppColors.purple400, fontSize: 10),
+              ),
             ],
           ),
           const SizedBox(height: 4),
@@ -380,7 +397,9 @@ class _GameScreenState extends State<GameScreen>
                 child: AnimatedFractionallySizedBox(
                   duration: const Duration(seconds: 1),
                   widthFactor: progress.clamp(0, 1).toDouble(),
-                  child: DecoratedBox(decoration: BoxDecoration(gradient: color)),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(gradient: color),
+                  ),
                 ),
               ),
             ),
@@ -410,8 +429,10 @@ class _GameScreenState extends State<GameScreen>
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Column(
         children: [
-          Text('Kształt ${_learnIdx + 1} / ${_shapes.length}',
-              style: TextStyle(color: AppColors.purple300, fontSize: 14)),
+          Text(
+            'Kształt ${_learnIdx + 1} / ${_shapes.length}',
+            style: TextStyle(color: AppColors.purple300, fontSize: 14),
+          ),
           const SizedBox(height: 24),
           Stack(
             alignment: Alignment.center,
@@ -422,51 +443,63 @@ class _GameScreenState extends State<GameScreen>
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(24),
-                  border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.10)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.10),
+                  ),
                 ),
                 child: Center(child: ShapeWidget(id: pair.shape.id, size: 130)),
               ),
               if (_phase == _Phase.bravo)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 12),
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.green400.withValues(alpha: 0.90),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: const [
                       BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 12,
-                          offset: Offset(0, 4)),
+                        color: Colors.black26,
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
+                      ),
                     ],
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.check_circle_outline,
-                          color: Colors.white, size: 20),
+                      Icon(
+                        Icons.check_circle_outline,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                       SizedBox(width: 8),
-                      Text('Brawo! Pora na kolejny!',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600)),
+                      Text(
+                        'Brawo! Pora na kolejny!',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
                 ),
             ],
           ),
           const SizedBox(height: 24),
-          Text(pair.shape.name,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600)),
+          Text(
+            pair.shape.name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(16),
@@ -474,15 +507,19 @@ class _GameScreenState extends State<GameScreen>
             ),
             child: Column(
               children: [
-                Text('Wykonaj ruch:',
-                    style: TextStyle(
-                        color: AppColors.purple300, fontSize: 12)),
+                Text(
+                  'Wykonaj ruch:',
+                  style: TextStyle(color: AppColors.purple300, fontSize: 12),
+                ),
                 const SizedBox(height: 2),
-                Text(pair.movement.name,
-                    style: const TextStyle(
-                        color: AppColors.yellow400,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16)),
+                Text(
+                  pair.movement.name,
+                  style: const TextStyle(
+                    color: AppColors.yellow400,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
               ],
             ),
           ),
@@ -493,9 +530,10 @@ class _GameScreenState extends State<GameScreen>
               children: [
                 _pulseDot(AppColors.purple400),
                 const SizedBox(width: 8),
-                Text('Czekam na ruch czujnika…',
-                    style: TextStyle(
-                        color: AppColors.purple400, fontSize: 12)),
+                Text(
+                  'Czekam na ruch czujnika…',
+                  style: TextStyle(color: AppColors.purple400, fontSize: 12),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -505,11 +543,15 @@ class _GameScreenState extends State<GameScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Pomiń',
-                      style: TextStyle(
-                          color: AppColors.purple400, fontSize: 14)),
-                  Icon(Icons.chevron_right,
-                      color: AppColors.purple400, size: 18),
+                  Text(
+                    'Pomiń',
+                    style: TextStyle(color: AppColors.purple400, fontSize: 14),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    color: AppColors.purple400,
+                    size: 18,
+                  ),
                 ],
               ),
             ),
@@ -538,19 +580,27 @@ class _GameScreenState extends State<GameScreen>
                 ),
               ],
             ),
-            child: const Icon(Icons.check_circle_outline,
-                color: Colors.white, size: 32),
+            child: const Icon(
+              Icons.check_circle_outline,
+              color: Colors.white,
+              size: 32,
+            ),
           ),
           const SizedBox(height: 12),
-          const Text('Świetnie!',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600)),
+          const Text(
+            'Świetnie!',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text('Znasz już wszystkie kształty.\nCzas sprawdzić się na czas!',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.purple300, fontSize: 14)),
+          Text(
+            'Znasz już wszystkie kształty.\nCzas sprawdzić się na czas!',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.purple300, fontSize: 14),
+          ),
           const SizedBox(height: 16),
           _mappingCard(),
           const SizedBox(height: 16),
@@ -573,14 +623,16 @@ class _GameScreenState extends State<GameScreen>
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.sports_esports,
-                      color: Colors.white, size: 20),
+                  Icon(Icons.sports_esports, color: Colors.white, size: 20),
                   SizedBox(width: 8),
-                  Text('Zagraj w grę!',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600)),
+                  Text(
+                    'Zagraj w grę!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -599,8 +651,10 @@ class _GameScreenState extends State<GameScreen>
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Column(
         children: [
-          Text('Jaki ruch wykonać?',
-              style: TextStyle(color: AppColors.purple300, fontSize: 14)),
+          Text(
+            'Jaki ruch wykonać?',
+            style: TextStyle(color: AppColors.purple300, fontSize: 14),
+          ),
           const SizedBox(height: 16),
           Stack(
             alignment: Alignment.center,
@@ -613,15 +667,15 @@ class _GameScreenState extends State<GameScreen>
                   color: correct
                       ? AppColors.green400.withValues(alpha: 0.10)
                       : timeout
-                          ? AppColors.red400.withValues(alpha: 0.10)
-                          : Colors.white.withValues(alpha: 0.05),
+                      ? AppColors.red400.withValues(alpha: 0.10)
+                      : Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: correct
                         ? AppColors.green400.withValues(alpha: 0.60)
                         : timeout
-                            ? AppColors.red400.withValues(alpha: 0.60)
-                            : Colors.white.withValues(alpha: 0.10),
+                        ? AppColors.red400.withValues(alpha: 0.60)
+                        : Colors.white.withValues(alpha: 0.10),
                   ),
                 ),
                 child: Center(child: ShapeWidget(id: pair.shape.id, size: 140)),
@@ -629,7 +683,9 @@ class _GameScreenState extends State<GameScreen>
               if (_roundResult != _RoundResult.none)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 12),
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: correct
                         ? AppColors.green400.withValues(alpha: 0.90)
@@ -639,19 +695,23 @@ class _GameScreenState extends State<GameScreen>
                   child: Text(
                     correct ? '✓ Poprawnie!' : '⏱ Czas!',
                     style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600),
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
             ],
           ),
           const SizedBox(height: 16),
-          Text(pair.shape.name,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600)),
+          Text(
+            pair.shape.name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           if (_roundResult == _RoundResult.none) ...[
             const SizedBox(height: 16),
             Row(
@@ -659,9 +719,10 @@ class _GameScreenState extends State<GameScreen>
               children: [
                 _pulseDot(AppColors.purple400),
                 const SizedBox(width: 8),
-                Text('Wykrywam ruch czujnika…',
-                    style: TextStyle(
-                        color: AppColors.purple400, fontSize: 12)),
+                Text(
+                  'Wykrywam ruch czujnika…',
+                  style: TextStyle(color: AppColors.purple400, fontSize: 12),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -671,21 +732,31 @@ class _GameScreenState extends State<GameScreen>
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 8),
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
-                  border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.20)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.20),
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Wykonano',
-                        style: TextStyle(
-                            color: AppColors.purple300, fontSize: 12)),
-                    Icon(Icons.chevron_right,
-                        color: AppColors.purple300, size: 16),
+                    Text(
+                      'Wykonano',
+                      style: TextStyle(
+                        color: AppColors.purple300,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right,
+                      color: AppColors.purple300,
+                      size: 16,
+                    ),
                   ],
                 ),
               ),
@@ -715,21 +786,64 @@ class _GameScreenState extends State<GameScreen>
                 ),
               ],
             ),
-            child: const Icon(Icons.emoji_events,
-                color: Colors.white, size: 40),
+            child: const Icon(
+              Icons.emoji_events,
+              color: Colors.white,
+              size: 40,
+            ),
           ),
           const SizedBox(height: 16),
-          Text('Wynik końcowy',
-              style: TextStyle(color: AppColors.purple300, fontSize: 14)),
-          Text('$_score',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 56,
-                  height: 1,
-                  fontWeight: FontWeight.w600)),
+          Text(
+            'Wynik końcowy',
+            style: TextStyle(color: AppColors.purple300, fontSize: 14),
+          ),
+          Text(
+            '$_score',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 56,
+              height: 1,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text('/ $_totalRounds poprawnych ruchów',
-              style: TextStyle(color: AppColors.purple300, fontSize: 14)),
+          Text(
+            '/ $_totalRounds poprawnych ruchów',
+            style: TextStyle(color: AppColors.purple300, fontSize: 14),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'Czas gry',
+                  style: TextStyle(color: AppColors.purple300, fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${_formatTime(_totalTimeUsed)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Średnio na rundę: ${_formatTime((_totalTimeUsed / _totalRounds).round())}',
+                  style: TextStyle(color: AppColors.purple300, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -770,11 +884,14 @@ class _GameScreenState extends State<GameScreen>
                 children: [
                   Icon(Icons.sports_esports, color: Colors.white, size: 20),
                   SizedBox(width: 8),
-                  Text('Zagraj ponownie',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600)),
+                  Text(
+                    'Zagraj ponownie',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -788,15 +905,17 @@ class _GameScreenState extends State<GameScreen>
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(16),
-                border:
-                    Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
               ),
               child: const Center(
-                child: Text('Wróć do menu',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500)),
+                child: Text(
+                  'Wróć do menu',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
             ),
           ),
@@ -818,8 +937,10 @@ class _GameScreenState extends State<GameScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (headline != null) ...[
-            Text(headline,
-                style: TextStyle(color: AppColors.purple300, fontSize: 12)),
+            Text(
+              headline,
+              style: TextStyle(color: AppColors.purple300, fontSize: 12),
+            ),
             const SizedBox(height: 8),
           ],
           for (final pair in _mapping)
@@ -835,19 +956,26 @@ class _GameScreenState extends State<GameScreen>
                   ),
                   Expanded(
                     child: Center(
-                      child: Text(pair.shape.name,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 12)),
+                      child: Text(
+                        pair.shape.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                   ),
                   Expanded(
                     child: Align(
                       alignment: Alignment.centerRight,
-                      child: Text(pair.movement.name,
-                          style: const TextStyle(
-                              color: AppColors.yellow400,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500)),
+                      child: Text(
+                        pair.movement.name,
+                        style: const TextStyle(
+                          color: AppColors.yellow400,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -858,12 +986,19 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
+  String _formatTime(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '${m}:${s.toString().padLeft(2, '0')}';
+  }
+
   Widget _cheatSheet() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.20),
         border: Border(
-            top: BorderSide(color: Colors.white.withValues(alpha: 0.10))),
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+        ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
@@ -881,9 +1016,10 @@ class _GameScreenState extends State<GameScreen>
                     pair.movement.name,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                        color: AppColors.purple400,
-                        fontSize: 9,
-                        height: 1.1),
+                      color: AppColors.purple400,
+                      fontSize: 9,
+                      height: 1.1,
+                    ),
                   ),
                 ),
               ],

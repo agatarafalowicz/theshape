@@ -152,9 +152,11 @@ class _MainPageState extends State<MainPage>
               Positioned.fill(
                 child: GameScreen(
                   userId: _userId,
-                  onClose: () => setState(
-                        () => _showGame = false,
-                  ),
+                  onGameFinished: () {
+                    _loadStats();
+                    _loadLeaderboard();
+                  },
+                  onClose: () => setState(() => _showGame = false),
                 ),
               ),
           ],

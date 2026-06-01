@@ -1,11 +1,24 @@
 import '../services/api_service.dart';
+import '../services/metawear_service.dart';
+import '../services/metawear_protocol.dart';
 import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_theme.dart';
 import '../widgets/shape_widget.dart';
+
+const int kGestureWindowSize = 64;
+
+const Map<String, String> kMovementIdToLabel = {
+  'wave':       'Fala',
+  'waving':     'Machanie',
+  'circle_cw':  'Okrag_CW',
+  'circle_ccw': 'Okrag_CCW',
+  'up_down':    'Gora-dol',
+};
 
 const int _totalRounds = 10;
 const int _shapeSeconds = 6;
@@ -58,10 +71,12 @@ class GameScreen extends StatefulWidget {
   const GameScreen({
     super.key,
     required this.onClose,
+    required this.onGameFinished,
     required this.userId,
   });
 
   final VoidCallback onClose;
+  final VoidCallback onGameFinished;
   final int? userId;
 
   @override
@@ -88,6 +103,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   late final AnimationController _pulse;
 
+  final _service = MetaWearService();
+  final _localAccBuf = <SensorSample>[];
+  final _localGyroBuf = <SensorSample>[];
+  StreamSubscription<SensorSample>? _accSub;
+  StreamSubscription<SensorSample>? _gyroSub;
+  bool _isPredicting = false;
+
   @override
   void initState() {
     super.initState();
@@ -97,6 +119,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 1100),
     )..repeat(reverse: true);
     _scheduleLearningAdvance();
+    _connectAndStartIMU();
+    _accSub = _service.accStream.listen((s) {
+      if (_phase == _Phase.playing) _localAccBuf.add(s);
+    });
+    _gyroSub = _service.gyroStream.listen((s) {
+      if (_phase == _Phase.playing) _localGyroBuf.add(s);
+    });
   }
 
   @override
@@ -106,11 +135,34 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _shapeTicker?.cancel();
     _resultTimer?.cancel();
     _pulse.dispose();
+    _accSub?.cancel();
+    _gyroSub?.cancel();
+    _service.stopIMU();
+    _service.dispose();
     super.dispose();
+  }
+
+  Future<void> _connectAndStartIMU() async {
+    final prefs = await SharedPreferences.getInstance();
+    final deviceId = prefs.getString('selectedDevice');
+    if (deviceId != null && deviceId.isNotEmpty) {
+      try {
+        await _service.connect(deviceId);
+        await _service.startIMU();
+      } catch (e) {
+        debugPrint('IMU connect error: $e — tryb symulacji');
+        _service.startSimulation();
+      }
+    } else {
+      _service.startSimulation();
+    }
   }
 
   Future<void> _saveGameResult() async {
     debugPrint('SAVE GAME START');
+    await _service.stopIMU();
+    widget.onGameFinished();
+
     if (widget.userId == null) return;
 
     debugPrint(
@@ -192,7 +244,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   void _startShapeTicker() {
     _shapeTicker?.cancel();
-    setState(() => _shapeTimeLeft = _shapeSeconds);
+    setState(() {
+      _shapeTimeLeft = _shapeSeconds;
+      _localAccBuf.clear();
+      _localGyroBuf.clear();
+    });
     _shapeTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       if (_shapeTimeLeft <= 1) {
@@ -209,6 +265,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _startGame() {
+    if (!_service.isRunning) _connectAndStartIMU();
     final rng = Random();
     final shapes = List<_Pair>.generate(
       _totalRounds,
@@ -225,6 +282,40 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _phase = _Phase.playing;
     });
     _startShapeTicker();
+  }
+
+  Future<void> _checkGesture() async {
+    if (_isPredicting || _roundResult != _RoundResult.none) return;
+
+    final accCount = _localAccBuf.length;
+    final gyroCount = _localGyroBuf.length;
+    if (accCount < kGestureWindowSize || gyroCount < kGestureWindowSize) return;
+
+    setState(() => _isPredicting = true);
+
+    final accSlice = _localAccBuf.sublist(accCount - kGestureWindowSize);
+    final gyroSlice = _localGyroBuf.sublist(gyroCount - kGestureWindowSize);
+    final points = List.generate(kGestureWindowSize, (i) => [
+      accSlice[i].x, accSlice[i].y, accSlice[i].z,
+      gyroSlice[i].x, gyroSlice[i].y, gyroSlice[i].z,
+    ]);
+
+    final expectedLabel =
+        kMovementIdToLabel[_gameShapes[_gameIdx].movement.id] ?? '';
+
+    try {
+      final result = await ApiService.predictGesture(points);
+      final predicted = result['label'] as String;
+      if (mounted && _roundResult == _RoundResult.none) {
+        _advanceRound(predicted == expectedLabel);
+      }
+    } catch (_) {
+      if (mounted && _roundResult == _RoundResult.none) {
+        _advanceRound(false);
+      }
+    } finally {
+      if (mounted) setState(() => _isPredicting = false);
+    }
   }
 
   void _restart() {
@@ -369,7 +460,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           GestureDetector(
-            onTap: widget.onClose,
+            onTap: () async {
+              if (_service.isRunning) await _service.stopIMU();
+              widget.onClose();
+            },
             child: Container(
               width: 36,
               height: 36,
@@ -758,41 +852,60 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               ],
             ),
             const SizedBox(height: 16),
-            GestureDetector(
-              onTap: () {
-                if (_roundResult == _RoundResult.none) _advanceRound(true);
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.20),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Wykonano',
-                      style: TextStyle(
-                        color: AppColors.purple300,
-                        fontSize: 12,
+            Builder(builder: (context) {
+              final collected =
+                  min(_localAccBuf.length, _localGyroBuf.length);
+              final ready =
+                  collected >= kGestureWindowSize && !_isPredicting;
+              return GestureDetector(
+                onTap: ready ? _checkGesture : null,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 150),
+                  opacity: ready ? 1.0 : 0.5,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.20),
                       ),
                     ),
-                    Icon(
-                      Icons.chevron_right,
-                      color: AppColors.purple300,
-                      size: 16,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_isPredicting)
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        else
+                          Text(
+                            ready
+                                ? 'Wykonano'
+                                : 'Ładowanie...',
+                            style: TextStyle(
+                              color: AppColors.purple300,
+                              fontSize: 12,
+                            ),
+                          ),
+                        if (!_isPredicting)
+                          Icon(
+                            Icons.chevron_right,
+                            color: AppColors.purple300,
+                            size: 16,
+                          ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            }),
           ],
         ],
       ),
@@ -930,7 +1043,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 10),
           GestureDetector(
-            onTap: widget.onClose,
+            onTap: () async {
+              if (_service.isRunning) await _service.stopIMU();
+              widget.onClose();
+            },
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12),

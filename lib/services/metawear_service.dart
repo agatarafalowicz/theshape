@@ -1,6 +1,7 @@
 // metawear_service.dart
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' show Random;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,6 +30,36 @@ class MetaWearService {
   final _accBuf  = <SensorSample>[];
   final _gyroBuf = <SensorSample>[];
   DateTime? _startTime;
+
+  // ── Tryb symulacji ──────────────────────────────────────────────────────
+  Timer? _simTimer;
+
+  void startSimulation() {
+    if (_running) return;
+    _running = true;
+    _startTime = DateTime.now();
+    _accBuf.clear();
+    _gyroBuf.clear();
+    _emitConnectionState(true);
+    final rng = Random();
+    _simTimer = Timer.periodic(const Duration(milliseconds: 20), (_) {
+      final t = DateTime.now();
+      final acc = SensorSample(t,
+        rng.nextDouble() * 0.4 - 0.2,
+        rng.nextDouble() * 0.4 - 0.2,
+        0.9 + rng.nextDouble() * 0.1,
+      );
+      final gyro = SensorSample(t,
+        rng.nextDouble() * 60 - 30,
+        rng.nextDouble() * 60 - 30,
+        rng.nextDouble() * 60 - 30,
+      );
+      if (!_accCtrl.isClosed) _accCtrl.add(acc);
+      if (!_gyroCtrl.isClosed) _gyroCtrl.add(gyro);
+      if (_running) { _accBuf.add(acc); _gyroBuf.add(gyro); }
+    });
+    _log('Tryb symulacji');
+  }
 
   // ── Zapamiętany folder zapisu ───────────────────────────────────────────
 
@@ -167,6 +198,13 @@ class MetaWearService {
 
   Future<List<String>> stopIMU() async {
     if (!_running) return [];
+    if (_simTimer != null) {
+      _simTimer?.cancel();
+      _simTimer = null;
+      _running = false;
+      _log('Symulacja zatrzymana');
+      return [];
+    }
     await _send(accStop());
     await _send(accDisable());
     await _send(accUnsubscribe());
@@ -245,6 +283,8 @@ class MetaWearService {
   }
 
   void dispose() {
+    _simTimer?.cancel();
+    _notifySub?.cancel();
     _accCtrl.close();
     _gyroCtrl.close();
     _logCtrl.close();

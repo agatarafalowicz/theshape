@@ -65,7 +65,7 @@ List<_Pair> _buildMapping() {
 
 enum _Phase { learning, bravo, ready, playing, finished }
 
-enum _RoundResult { none, correct, timeout }
+enum _RoundResult { none, correct, incorrect, timeout }
 
 class GameScreen extends StatefulWidget {
   const GameScreen({
@@ -161,9 +161,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   Future<void> _saveGameResult() async {
     debugPrint('SAVE GAME START');
     await _service.stopIMU();
-    widget.onGameFinished();
 
-    if (widget.userId == null) return;
+    if (widget.userId == null) {
+      widget.onGameFinished();
+      return;
+    }
 
     debugPrint(
       'user=${widget.userId} score=$_score time=$_totalTimeUsed',
@@ -180,6 +182,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     } catch (e) {
       debugPrint('SAVE GAME ERROR: $e');
     }
+    widget.onGameFinished();
   }
 
   void _scheduleLearningAdvance() {
@@ -208,7 +211,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     }
   }
 
-  void _advanceRound(bool wasCorrect) {
+  void _advanceRound(bool wasCorrect, {bool isTimeout = false}) {
     _shapeTicker?.cancel();
     int usedSeconds;
     if (!wasCorrect) {
@@ -218,7 +221,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     }
     setState(() {
       if (wasCorrect) _score++;
-      _roundResult = wasCorrect ? _RoundResult.correct : _RoundResult.timeout;
+      _roundResult = wasCorrect
+          ? _RoundResult.correct
+          : isTimeout
+              ? _RoundResult.timeout
+              : _RoundResult.incorrect;
       _totalTimeUsed += usedSeconds;
       _roundTimes.add(usedSeconds);
     });
@@ -254,7 +261,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       if (_shapeTimeLeft <= 1) {
         _shapeTicker?.cancel();
         if (_roundResult == _RoundResult.none) {
-          _advanceRound(false);
+          _advanceRound(false, isTimeout: true);
         } else {
           setState(() => _shapeTimeLeft = 0);
         }
@@ -772,6 +779,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     if (_gameShapes.isEmpty) return const SizedBox();
     final pair = _gameShapes[min(_gameIdx, _gameShapes.length - 1)];
     final correct = _roundResult == _RoundResult.correct;
+    final incorrect = _roundResult == _RoundResult.incorrect;
     final timeout = _roundResult == _RoundResult.timeout;
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -792,14 +800,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 decoration: BoxDecoration(
                   color: correct
                       ? AppColors.green400.withValues(alpha: 0.10)
-                      : timeout
+                      : (incorrect || timeout)
                       ? AppColors.red400.withValues(alpha: 0.10)
                       : Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: correct
                         ? AppColors.green400.withValues(alpha: 0.60)
-                        : timeout
+                        : (incorrect || timeout)
                         ? AppColors.red400.withValues(alpha: 0.60)
                         : Colors.white.withValues(alpha: 0.10),
                   ),
@@ -819,7 +827,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    correct ? '✓ Poprawnie!' : '⏱ Czas!',
+                    correct ? '✓ Poprawnie!' : incorrect ? '✗ Niepoprawnie!' : '⏱ Czas!',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,

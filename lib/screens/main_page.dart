@@ -375,7 +375,7 @@ class _MainPageState extends State<MainPage>
             .substring(0, 2)
             .toUpperCase(),
         score: player['points'],
-        wins: player['wins'] ?? 0,
+        won: player['won'] ?? false,
         gradient: const LinearGradient(
           colors: [
             AppColors.indigo500,
@@ -399,7 +399,7 @@ class _MainPageState extends State<MainPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Znajomi',
+                    const Text('Pozostali gracze',
                         style: TextStyle(
                             color: Colors.white,
                             fontSize: 24,
@@ -412,37 +412,6 @@ class _MainPageState extends State<MainPage>
                 ),
               ),
               const SizedBox(width: 12),
-              GestureDetector(
-                onTap: _openAddFriendDialog,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    gradient: AppColors.indigoPurpleGradient,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.purple500.withValues(alpha: 0.30),
-                        blurRadius: 18,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.person_add_alt_1,
-                          color: Colors.white, size: 16),
-                      SizedBox(width: 8),
-                      Text('Dodaj znajomych',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -450,7 +419,7 @@ class _MainPageState extends State<MainPage>
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text('Ranking znajomych',
+            child: Text('Ranking graczy',
                 style: TextStyle(color: AppColors.purple300, fontSize: 14)),
           ),
           for (int i = 0; i < allRankings.length; i++) ...[
@@ -460,7 +429,7 @@ class _MainPageState extends State<MainPage>
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text('Twoje statystyki vs. znajomi',
+            child: Text('Twoje statystyki vs. inni',
                 style: TextStyle(color: AppColors.purple300, fontSize: 14)),
           ),
           _statsCard(),
@@ -470,7 +439,7 @@ class _MainPageState extends State<MainPage>
   }
 
   Widget _myPositionCard(List<_RankItem> ranks) {
-    final myRank = ranks.indexWhere((r) => r.isMe) + 1;
+    final myRank = _stats?['rank']?['rank'] as int?;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -541,7 +510,7 @@ class _MainPageState extends State<MainPage>
                   color: AppColors.yellow400.withValues(alpha: 0.20),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text('#$myRank',
+                child: Text(myRank != null ? '#$myRank' : '-',
                     style: const TextStyle(
                         color: AppColors.yellow400,
                         fontSize: 18,
@@ -619,7 +588,7 @@ class _MainPageState extends State<MainPage>
                     ],
                   ],
                 ),
-                Text('${r.wins} wygranych',
+                Text(r.won ? 'Wygrana' : 'Przegrana',
                     style: TextStyle(
                         color: AppColors.purple400, fontSize: 12)),
               ],
@@ -900,7 +869,7 @@ class _MainPageState extends State<MainPage>
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _navItem(_Tab.game, Icons.sports_esports, 'Gra'),
-              _navItem(_Tab.home, Icons.home, 'Znajomi'),
+              _navItem(_Tab.home, Icons.home, 'Pozostali gracze'),
               _navItem(_Tab.settings, Icons.menu, 'Ustawienia'),
             ],
           ),
@@ -1197,14 +1166,14 @@ class _RankItem {
   final String name;
   final String avatar;
   final int score;
-  final int wins;
+  final bool won;
   final LinearGradient gradient;
   final bool isMe;
   const _RankItem({
     required this.name,
     required this.avatar,
     required this.score,
-    required this.wins,
+    required this.won,
     required this.gradient,
     required this.isMe,
   });

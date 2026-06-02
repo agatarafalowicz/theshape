@@ -214,8 +214,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   void _advanceRound(bool wasCorrect, {bool isTimeout = false}) {
     _shapeTicker?.cancel();
     int usedSeconds;
-    if (!wasCorrect) {
-      usedSeconds = _shapeSeconds; // timeout counts as full time
+    if (isTimeout) {
+      usedSeconds = _shapeSeconds;
     } else {
       usedSeconds = (_shapeSeconds - _shapeTimeLeft).clamp(0, _shapeSeconds);
     }
@@ -1005,7 +1005,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Opacity(
-                    opacity: _score >= (i + 1) * (_totalRounds / 3).ceil()
+                    opacity: _score >= const [5, 7, 10][i]
                         ? 1
                         : 0.2,
                     child: const Text('⭐', style: TextStyle(fontSize: 24)),

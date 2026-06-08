@@ -214,8 +214,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   void _advanceRound(bool wasCorrect, {bool isTimeout = false}) {
     _shapeTicker?.cancel();
     int usedSeconds;
-    if (isTimeout) {
-      usedSeconds = _shapeSeconds;
+    if (!wasCorrect) {
+      usedSeconds = _shapeSeconds; // timeout counts as full time
     } else {
       usedSeconds = (_shapeSeconds - _shapeTimeLeft).clamp(0, _shapeSeconds);
     }

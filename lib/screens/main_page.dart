@@ -29,6 +29,7 @@ class _MainPageState extends State<MainPage>
   int? get userId => _userId;
 
   Map<String, dynamic>? _stats;
+  Map<String, dynamic>? _weeklyStats;
 
   List<dynamic> _leaderboard = [];
 
@@ -46,6 +47,7 @@ class _MainPageState extends State<MainPage>
     _loadUser().then((_) {
       _loadStats();
       _loadLeaderboard();
+      _loadWeeklyStats();
     });
   }
 
@@ -83,6 +85,18 @@ class _MainPageState extends State<MainPage>
       setState(() {
         _loadingStats = false;
       });
+    }
+  }
+
+  Future<void> _loadWeeklyStats() async {
+    if (_userId == null) return;
+    try {
+      final stats = await ApiService.getWeeklyStats(_userId!);
+      setState(() {
+        _weeklyStats = stats;
+      });
+    } catch (e) {
+      debugPrint('LOAD WEEKLY STATS ERROR: $e');
     }
   }
 
@@ -155,6 +169,7 @@ class _MainPageState extends State<MainPage>
                   onGameFinished: () {
                     _loadStats();
                     _loadLeaderboard();
+                    _loadWeeklyStats();
                   },
                   onClose: () => setState(() => _showGame = false),
                 ),
@@ -286,7 +301,7 @@ class _MainPageState extends State<MainPage>
                       _formatScore(
                         (_stats?['rank']?['points'] ?? 0) as int,
                       ),
-                      'Punkty',
+                      'Rekord',
                     ),
                     const SizedBox(width: 12),
                     _statTile(
@@ -429,7 +444,7 @@ class _MainPageState extends State<MainPage>
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text('Twoje statystyki vs. inni',
+            child: Text('Twoje statystyki vs. inni - ostatnie 7 dni',
                 style: TextStyle(color: AppColors.purple300, fontSize: 14)),
           ),
           _statsCard(),
@@ -497,7 +512,7 @@ class _MainPageState extends State<MainPage>
                       ],
                     ),
                     Text(
-                        '${_stats?['wins'] ?? 0} wygranych · ${_formatScore((_stats?['rank']?['points'] ?? 0) as int)} pkt',
+                        '${_stats?['wins'] ?? 0} wygranych · rekord: ${_formatScore((_stats?['rank']?['points'] ?? 0) as int)} pkt',
                         style: TextStyle(
                             color: AppColors.purple300, fontSize: 12)),
                   ],
@@ -613,11 +628,43 @@ class _MainPageState extends State<MainPage>
   }
 
   Widget _statsCard() {
-    final stats = const [
-      _Stat('Średnia wygrane/tydzień', 6.8, 4.2, ''),
-      _Stat('Najdłuższa seria', 8, 5, ''),
-      _Stat('Łączny czas gry (h)', 24, 16, 'h'),
+    if (_weeklyStats == null || _stats?['rank'] == null) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        ),
+        child: Center(
+          child: Text(
+            'Zagraj pierwszą grę, aby zobaczyć statystyki',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.purple300, fontSize: 13),
+          ),
+        ),
+      );
+    }
+
+    final winRateYou =
+        ((_weeklyStats!['win_rate']?['you'] ?? 0.0) as num).toDouble() * 100;
+    final winRateAvg =
+        ((_weeklyStats!['win_rate']?['avg'] ?? 0.0) as num).toDouble() * 100;
+    final avgPtsYou =
+        ((_weeklyStats!['avg_points']?['you'] ?? 0.0) as num).toDouble();
+    final avgPtsAvg =
+        ((_weeklyStats!['avg_points']?['avg'] ?? 0.0) as num).toDouble();
+    final playtimeYou =
+        ((_weeklyStats!['playtime']?['you'] ?? 0) as num).toDouble() / 60;
+    final playtimeAvg =
+        ((_weeklyStats!['playtime']?['avg'] ?? 0.0) as num).toDouble() / 60;
+
+    final stats = [
+      _Stat('Procent wygranych', winRateYou, winRateAvg, '%'),
+      _Stat('Średnia punktów', avgPtsYou, avgPtsAvg, ''),
+      _Stat('Czas gry', playtimeYou, playtimeAvg, 'min'),
     ];
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -637,7 +684,8 @@ class _MainPageState extends State<MainPage>
   }
 
   Widget _statBar(_Stat s) {
-    final ratio = (s.me / (s.me + s.avg)) * 1.3;
+    final sum = s.me + s.avg;
+    final ratio = sum == 0 ? 0.0 : (s.me / sum) * 1.3;
     final width = ratio.clamp(0.0, 1.0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -659,7 +707,7 @@ class _MainPageState extends State<MainPage>
                     text: '${_fmt(s.me)}${s.unit}',
                     style: const TextStyle(color: AppColors.yellow400),
                   ),
-                  TextSpan(text: ' · Śr.: ${_fmt(s.avg)}${s.unit}'),
+                  TextSpan(text: ' · Pozostali: ${_fmt(s.avg)}${s.unit}'),
                 ],
               ),
             ),

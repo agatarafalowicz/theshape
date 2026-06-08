@@ -143,6 +143,18 @@ class ApiService {
     throw Exception('Failed to save game');
   }
 
+  static Future<Map<String, dynamic>> getWeeklyStats(int userId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/users/$userId/stats/weekly'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+
+    throw Exception('Failed to load weekly stats');
+  }
+
   static Future<double> getAverageLast7Days() async {
     final response = await http.get(
       Uri.parse('$baseUrl/stats/avg7d'),

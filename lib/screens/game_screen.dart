@@ -2,10 +2,13 @@ import '../services/api_service.dart';
 import '../services/metawear_service.dart';
 import '../services/metawear_protocol.dart';
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../app_theme.dart';
 import '../widgets/shape_widget.dart';
@@ -21,7 +24,6 @@ const Map<String, String> kMovementIdToLabel = {
 };
 
 const int _totalRounds = 10;
-const int _shapeSeconds = 6;
 
 class _Shape {
   final ShapeId id;
@@ -65,7 +67,7 @@ List<_Pair> _buildMapping() {
 
 enum _Phase { learning, bravo, ready, playing, finished }
 
-enum _RoundResult { none, correct, incorrect, timeout }
+enum _RoundResult { none, correct, incorrect }
 
 class GameScreen extends StatefulWidget {
   const GameScreen({
@@ -91,14 +93,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   List<_Pair> _gameShapes = [];
   int _gameIdx = 0;
   int _score = 0;
-  int _shapeTimeLeft = _shapeSeconds;
   _RoundResult _roundResult = _RoundResult.none;
   int _totalTimeUsed = 0; // seconds
-  List<int> _roundTimes = [];
+  DateTime? _gameStartedAt;
 
   Timer? _learnTimer;
   Timer? _bravoTimer;
-  Timer? _shapeTicker;
   Timer? _resultTimer;
 
   late final AnimationController _pulse;
@@ -108,7 +108,19 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   final _localGyroBuf = <SensorSample>[];
   StreamSubscription<SensorSample>? _accSub;
   StreamSubscription<SensorSample>? _gyroSub;
+  StreamSubscription<bool>? _connSub;
+  StreamSubscription<String>? _logSub;
   bool _isPredicting = false;
+  bool _isInitializingSensor = false;
+  bool _connected = false;
+  String _serviceLog = '';
+
+  // Ostatnie odczytane wartości z czujników
+  SensorSample? _lastAcc;
+  SensorSample? _lastGyro;
+  // Ostatnie wysłane dane do API
+  String? _lastPrediction;
+  String? _expectedMovement;
 
   @override
   void initState() {
@@ -119,12 +131,21 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 1100),
     )..repeat(reverse: true);
     _scheduleLearningAdvance();
-    _connectAndStartIMU();
     _accSub = _service.accStream.listen((s) {
+      setState(() => _lastAcc = s);
       if (_phase == _Phase.playing) _localAccBuf.add(s);
     });
     _gyroSub = _service.gyroStream.listen((s) {
+      setState(() => _lastGyro = s);
       if (_phase == _Phase.playing) _localGyroBuf.add(s);
+    });
+    _connSub = _service.connectionStateStream.listen((c) {
+      if (!mounted) return;
+      setState(() => _connected = c);
+    });
+    _logSub = _service.logStream.listen((m) {
+      if (!mounted) return;
+      setState(() => _serviceLog = m);
     });
   }
 
@@ -132,17 +153,21 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   void dispose() {
     _learnTimer?.cancel();
     _bravoTimer?.cancel();
-    _shapeTicker?.cancel();
     _resultTimer?.cancel();
     _pulse.dispose();
     _accSub?.cancel();
     _gyroSub?.cancel();
+    _connSub?.cancel();
+    _logSub?.cancel();
     _service.stopIMU();
     _service.dispose();
     super.dispose();
   }
 
   Future<void> _connectAndStartIMU() async {
+    if (_isInitializingSensor) return;
+    if (_service.isRunning) return;
+    setState(() => _isInitializingSensor = true);
     final prefs = await SharedPreferences.getInstance();
     final deviceId = prefs.getString('selectedDevice');
     if (deviceId != null && deviceId.isNotEmpty) {
@@ -150,16 +175,17 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         await _service.connect(deviceId);
         await _service.startIMU();
       } catch (e) {
-        debugPrint('IMU connect error: $e — tryb symulacji');
-        _service.startSimulation();
+        debugPrint('IMU connect error: $e');
       }
-    } else {
-      _service.startSimulation();
     }
+    if (mounted) setState(() => _isInitializingSensor = false);
   }
 
   Future<void> _saveGameResult() async {
     debugPrint('SAVE GAME START');
+    if (_gameStartedAt != null) {
+      _totalTimeUsed = DateTime.now().difference(_gameStartedAt!).inSeconds;
+    }
     await _service.stopIMU();
 
     if (widget.userId == null) {
@@ -211,23 +237,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     }
   }
 
-  void _advanceRound(bool wasCorrect, {bool isTimeout = false}) {
-    _shapeTicker?.cancel();
-    int usedSeconds;
-    if (!wasCorrect) {
-      usedSeconds = _shapeSeconds; // timeout counts as full time
-    } else {
-      usedSeconds = (_shapeSeconds - _shapeTimeLeft).clamp(0, _shapeSeconds);
-    }
+  void _advanceRound(bool wasCorrect) {
     setState(() {
       if (wasCorrect) _score++;
-      _roundResult = wasCorrect
-          ? _RoundResult.correct
-          : isTimeout
-              ? _RoundResult.timeout
-              : _RoundResult.incorrect;
-      _totalTimeUsed += usedSeconds;
-      _roundTimes.add(usedSeconds);
+      _roundResult = wasCorrect ? _RoundResult.correct : _RoundResult.incorrect;
     });
     _resultTimer = Timer(const Duration(milliseconds: 800), () {
       if (!mounted) return;
@@ -242,37 +255,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       } else {
         setState(() {
           _gameIdx = next;
-          _shapeTimeLeft = _shapeSeconds;
         });
-        _startShapeTicker();
-      }
-    });
-  }
-
-  void _startShapeTicker() {
-    _shapeTicker?.cancel();
-    setState(() {
-      _shapeTimeLeft = _shapeSeconds;
-      _localAccBuf.clear();
-      _localGyroBuf.clear();
-    });
-    _shapeTicker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      if (_shapeTimeLeft <= 1) {
-        _shapeTicker?.cancel();
-        if (_roundResult == _RoundResult.none) {
-          _advanceRound(false, isTimeout: true);
-        } else {
-          setState(() => _shapeTimeLeft = 0);
-        }
-      } else {
-        setState(() => _shapeTimeLeft--);
       }
     });
   }
 
   void _startGame() {
-    if (!_service.isRunning) _connectAndStartIMU();
     final rng = Random();
     final shapes = List<_Pair>.generate(
       _totalRounds,
@@ -283,50 +271,53 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _gameIdx = 0;
       _score = 0;
       _totalTimeUsed = 0;
-      _roundTimes.clear();
-      _shapeTimeLeft = _shapeSeconds;
+      _gameStartedAt = DateTime.now();
+      _localAccBuf.clear();
+      _localGyroBuf.clear();
       _roundResult = _RoundResult.none;
       _phase = _Phase.playing;
+      _lastPrediction = null;
+      _expectedMovement = null;
     });
-    _startShapeTicker();
   }
 
-  Future<void> _checkGesture() async {
-    if (_isPredicting || _roundResult != _RoundResult.none) return;
+    Future<void> _checkGesture() async {
+     if (_isPredicting || _roundResult != _RoundResult.none) return;
 
-    final accCount = _localAccBuf.length;
-    final gyroCount = _localGyroBuf.length;
-    if (accCount < kGestureWindowSize || gyroCount < kGestureWindowSize) return;
+     final accCount = _localAccBuf.length;
+     final gyroCount = _localGyroBuf.length;
+     if (accCount < kGestureWindowSize || gyroCount < kGestureWindowSize) return;
 
-    setState(() => _isPredicting = true);
+     setState(() => _isPredicting = true);
 
-    final accSlice = _localAccBuf.sublist(accCount - kGestureWindowSize);
-    final gyroSlice = _localGyroBuf.sublist(gyroCount - kGestureWindowSize);
-    final points = List.generate(kGestureWindowSize, (i) => [
-      accSlice[i].x, accSlice[i].y, accSlice[i].z,
-      gyroSlice[i].x, gyroSlice[i].y, gyroSlice[i].z,
-    ]);
+     final accSlice = _localAccBuf.sublist(accCount - kGestureWindowSize);
+     final gyroSlice = _localGyroBuf.sublist(gyroCount - kGestureWindowSize);
+     final points = List.generate(kGestureWindowSize, (i) => [
+       accSlice[i].x, accSlice[i].y, accSlice[i].z,
+       gyroSlice[i].x, gyroSlice[i].y, gyroSlice[i].z,
+     ]);
 
-    final expectedLabel =
-        kMovementIdToLabel[_gameShapes[_gameIdx].movement.id] ?? '';
+      final expectedLabel =
+          kMovementIdToLabel[_gameShapes[_gameIdx].movement.id] ?? '';
+     setState(() => _expectedMovement = expectedLabel);
 
-    try {
-      final result = await ApiService.predictGesture(points);
-      final predicted = result['label'] as String;
-      if (mounted && _roundResult == _RoundResult.none) {
-        _advanceRound(predicted == expectedLabel);
-      }
-    } catch (_) {
-      if (mounted && _roundResult == _RoundResult.none) {
-        _advanceRound(false);
-      }
-    } finally {
-      if (mounted) setState(() => _isPredicting = false);
-    }
-  }
+     try {
+       final result = await ApiService.predictGesture(points);
+       final predicted = result['label'] as String;
+       setState(() => _lastPrediction = predicted);
+       if (mounted && _roundResult == _RoundResult.none) {
+         _advanceRound(predicted == expectedLabel);
+       }
+     } catch (_) {
+       if (mounted && _roundResult == _RoundResult.none) {
+         _advanceRound(false);
+       }
+     } finally {
+       if (mounted) setState(() => _isPredicting = false);
+     }
+   }
 
   void _restart() {
-    _shapeTicker?.cancel();
     setState(() {
       _mapping = _buildMapping();
       _learnIdx = 0;
@@ -334,7 +325,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _score = 0;
       _roundResult = _RoundResult.none;
       _totalTimeUsed = 0;
-      _roundTimes.clear();
+      _gameStartedAt = null;
+      _lastPrediction = null;
+      _expectedMovement = null;
     });
     _scheduleLearningAdvance();
   }
@@ -354,8 +347,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           child: Column(
             children: [
               _topBar(),
-              if (_phase == _Phase.playing) _playingProgress(),
               Expanded(child: _content()),
+              if (_phase == _Phase.playing) _sensorInitBar(),
+              if (_phase == _Phase.playing) _sensorDataPanel(),
               if (showSheet) _cheatSheet(),
             ],
           ),
@@ -433,33 +427,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       center = const SizedBox.shrink();
     }
 
-    Widget right;
-    if (_phase == _Phase.playing) {
-      right = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.timer_outlined, color: AppColors.purple300, size: 16),
-            const SizedBox(width: 6),
-            Text(
-              '${_shapeTimeLeft}s',
-              style: TextStyle(
-                color: _shapeTimeLeft <= 2 ? AppColors.red400 : Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
-    } else {
-      right = const SizedBox(width: 36);
-    }
+    final right = const SizedBox(width: 36);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
@@ -487,56 +455,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           ),
           center,
           right,
-        ],
-      ),
-    );
-  }
-
-  Widget _playingProgress() {
-    final progress = _shapeTimeLeft / _shapeSeconds;
-    final color = _shapeTimeLeft <= 2
-        ? const LinearGradient(colors: [AppColors.red500, AppColors.red400])
-        : _shapeTimeLeft <= 4
-        ? const LinearGradient(colors: [Color(0xFFFB923C), AppColors.yellow400])
-        : const LinearGradient(
-            colors: [AppColors.indigo400, AppColors.purple400],
-          );
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Runda ${min(_gameIdx + 1, _totalRounds)} / $_totalRounds',
-                style: TextStyle(color: AppColors.purple400, fontSize: 10),
-              ),
-              Text(
-                'Poprawne: $_score',
-                style: TextStyle(color: AppColors.purple400, fontSize: 10),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: Container(
-              height: 8,
-              color: Colors.white.withValues(alpha: 0.10),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: AnimatedFractionallySizedBox(
-                  duration: const Duration(seconds: 1),
-                  widthFactor: progress.clamp(0, 1).toDouble(),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(gradient: color),
-                  ),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -656,7 +574,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               ],
             ),
           ),
-          if (_phase == _Phase.learning) ...[
+          if (_phase == _Phase.learning || _phase == _Phase.bravo) ...[
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -664,20 +582,22 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 _pulseDot(AppColors.purple400),
                 const SizedBox(width: 8),
                 Text(
-                  'Czekam na ruch czujnika…',
+                  _phase == _Phase.learning
+                      ? 'Czekam na ruch czujnika…'
+                      : 'Zaraz przechodzimy dalej…',
                   style: TextStyle(color: AppColors.purple400, fontSize: 12),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             GestureDetector(
-              onTap: _advanceLearning,
+              onTap: _skipTutorial,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Pomiń',
+                    'Pomiń samouczek',
                     style: TextStyle(color: AppColors.purple400, fontSize: 14),
                   ),
                   Icon(
@@ -780,7 +700,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final pair = _gameShapes[min(_gameIdx, _gameShapes.length - 1)];
     final correct = _roundResult == _RoundResult.correct;
     final incorrect = _roundResult == _RoundResult.incorrect;
-    final timeout = _roundResult == _RoundResult.timeout;
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Column(
@@ -800,14 +719,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 decoration: BoxDecoration(
                   color: correct
                       ? AppColors.green400.withValues(alpha: 0.10)
-                      : (incorrect || timeout)
+                      : incorrect
                       ? AppColors.red400.withValues(alpha: 0.10)
                       : Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: correct
                         ? AppColors.green400.withValues(alpha: 0.60)
-                        : (incorrect || timeout)
+                        : incorrect
                         ? AppColors.red400.withValues(alpha: 0.60)
                         : Colors.white.withValues(alpha: 0.10),
                   ),
@@ -827,7 +746,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    correct ? '✓ Poprawnie!' : incorrect ? '✗ Niepoprawnie!' : '⏱ Czas!',
+                    correct ? '✓ Poprawnie!' : '✗ Niepoprawnie!',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -847,18 +766,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             ),
           ),
           if (_roundResult == _RoundResult.none) ...[
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _pulseDot(AppColors.purple400),
-                const SizedBox(width: 8),
-                Text(
-                  'Wykrywam ruch czujnika…',
-                  style: TextStyle(color: AppColors.purple400, fontSize: 12),
-                ),
-              ],
-            ),
             const SizedBox(height: 16),
             Builder(builder: (context) {
               final collected =
@@ -895,8 +802,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                         else
                           Text(
                             ready
-                                ? 'Wykonano'
-                                : 'Ładowanie...',
+                                ? 'Zakończ ruch'
+                                : 'Czekam na dane...',
                             style: TextStyle(
                               color: AppColors.purple300,
                               fontSize: 12,
@@ -914,6 +821,50 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 ),
               );
             }),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: _connectAndStartIMU,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.20),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isInitializingSensor)
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    else
+                      Icon(
+                        _service.isRunning ? Icons.bluetooth_connected : Icons.sensors,
+                        color: AppColors.purple300,
+                        size: 16,
+                      ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _service.isRunning
+                          ? 'Czujnik aktywny'
+                          : 'Inicjalizuj czujnik',
+                      style: TextStyle(
+                        color: AppColors.purple300,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ],
       ),
@@ -982,7 +933,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${_formatTime(_totalTimeUsed)}',
+                  _formatTime(_totalTimeUsed),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 22,
@@ -1145,7 +1096,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   String _formatTime(int seconds) {
     final m = seconds ~/ 60;
     final s = seconds % 60;
-    return '${m}:${s.toString().padLeft(2, '0')}';
+    return '$m:${s.toString().padLeft(2, '0')}';
   }
 
   Widget _cheatSheet() {
@@ -1185,17 +1136,334 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _pulseDot(Color color) {
-    return AnimatedBuilder(
-      animation: _pulse,
-      builder: (context, child) => Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.5 + 0.5 * _pulse.value),
-          shape: BoxShape.circle,
+    Widget _sensorInitBar() {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: _showPairingDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.ctaGradient,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                        if (_isInitializingSensor)
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      else
+                        const Icon(Icons.sensors, color: Colors.white, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        _connected
+                            ? 'Czujnik: połączony'
+                            : (_service.isRunning ? 'Czujnik: aktywny' : 'Uruchom czujnik BLE'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
-      ),
-    );
-  }
-}
+      );
+    }
+
+      Future<void> _showPairingDialog() async {
+        if (_isInitializingSensor) return;
+        setState(() => _isInitializingSensor = true);
+
+        final devices = <Map<String, dynamic>>[];
+            StreamSubscription? sub;
+
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) {
+            return StatefulBuilder(builder: (c, setStateDialog) {
+              // start scan when dialog builds
+              sub = FlutterBluePlus.scanResults.listen((results) {
+                for (final r in results) {
+                  final name = r.device.platformName;
+                  final uuids = r.advertisementData.serviceUuids
+                      .map((u) => u.toString().toLowerCase())
+                      .toList();
+                  final isMetaWear = name.toLowerCase().contains('metawear') ||
+                      name.toLowerCase().contains('metamotion') ||
+                      uuids.contains(kServiceUuid.toLowerCase());
+                  if (!isMetaWear) continue;
+                  final id = r.device.remoteId.str;
+                  if (devices.any((d) => d['id'] == id)) continue;
+                  setStateDialog(() {
+                    devices.add({'id': id, 'name': name.isEmpty ? 'MetaWear ($id)' : name, 'rssi': r.rssi});
+                  });
+                }
+              });
+
+              // Request permissions and start scan
+              () async {
+                if (Platform.isAndroid) {
+                  await [
+                    Permission.bluetoothScan,
+                    Permission.bluetoothConnect,
+                    Permission.locationWhenInUse,
+                  ].request();
+                } else if (Platform.isIOS) {
+                  final bt = await Permission.bluetooth.request();
+                  if (bt.isDenied || bt.isPermanentlyDenied) return;
+                }
+                devices.clear();
+                await FlutterBluePlus.stopScan();
+                await FlutterBluePlus.startScan(withServices: [Guid(kServiceUuid)], timeout: const Duration(seconds: 12));
+              }();
+
+              return AlertDialog(
+                title: const Text('Wybierz MetaWear'),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (devices.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: Text('Skanowanie...'),
+                        ),
+                      if (devices.isNotEmpty)
+                        Flexible(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: devices.length,
+                            itemBuilder: (context, i) {
+                              final d = devices[i];
+                              return ListTile(
+                                title: Text(d['name']),
+                                subtitle: Text('${Platform.isIOS ? 'UUID' : 'MAC'}: ${d['id']} — ${d['rssi']} dBm'),
+                                trailing: ElevatedButton(
+                                  onPressed: () async {
+                                    try {
+                                      await FlutterBluePlus.stopScan();
+                                      await sub?.cancel();
+                                      // connect
+                                      await _service.connect(d['id']);
+                                      await _service.initializeBoard();
+                                      await _service.startIMU();
+                                      final prefs = await SharedPreferences.getInstance();
+                                      await prefs.setString('selectedDevice', d['id']);
+                                      if (!mounted) return;
+                                      Navigator.of(context, rootNavigator: true).pop();
+                                    } catch (e) {
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd połączenia: $e')));
+                                    }
+                                  },
+                                  child: const Text('Połącz'),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () async {
+                      await FlutterBluePlus.stopScan();
+                      await sub?.cancel();
+                      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+                    },
+                    child: const Text('Anuluj'),
+                  ),
+                ],
+              );
+            });
+          },
+        );
+
+        await FlutterBluePlus.stopScan();
+        await sub?.cancel();
+        if (mounted) setState(() => _isInitializingSensor = false);
+      }
+
+    Widget _sensorDataPanel() {
+     return Container(
+       decoration: BoxDecoration(
+         color: Colors.black.withValues(alpha: 0.30),
+         border: Border(
+           top: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+         ),
+       ),
+       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+       child: SingleChildScrollView(
+         scrollDirection: Axis.horizontal,
+         child: Row(
+           children: [
+             // Akcelerometr
+             _sensorCell(
+               title: 'ACC',
+               emoji: '📍',
+               x: _lastAcc?.x ?? 0,
+               y: _lastAcc?.y ?? 0,
+               z: _lastAcc?.z ?? 0,
+             ),
+             const SizedBox(width: 8),
+             // Żyroskop
+             _sensorCell(
+               title: 'GYRO',
+               emoji: '🔄',
+               x: _lastGyro?.x ?? 0,
+               y: _lastGyro?.y ?? 0,
+               z: _lastGyro?.z ?? 0,
+             ),
+             const SizedBox(width: 8),
+             // Predykcja
+             if (_lastPrediction != null || _expectedMovement != null)
+               Container(
+                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                 decoration: BoxDecoration(
+                   color: Colors.white.withValues(alpha: 0.08),
+                   borderRadius: BorderRadius.circular(8),
+                   border: Border.all(
+                     color: Colors.white.withValues(alpha: 0.15),
+                   ),
+                 ),
+                 child: Column(
+                   mainAxisSize: MainAxisSize.min,
+                   children: [
+                     Text(
+                       'Predykcja 🎯',
+                       style: TextStyle(
+                         color: AppColors.purple300,
+                         fontSize: 10,
+                         fontWeight: FontWeight.w600,
+                       ),
+                     ),
+                     const SizedBox(height: 2),
+                     Text(
+                       _lastPrediction ?? '—',
+                       style: TextStyle(
+                         color: AppColors.yellow400,
+                         fontSize: 11,
+                         fontWeight: FontWeight.w600,
+                       ),
+                     ),
+                     if (_expectedMovement != null) ...[
+                       const SizedBox(height: 2),
+                       Text(
+                         'oczek: $_expectedMovement',
+                         style: TextStyle(
+                           color: Colors.white.withValues(alpha: 0.6),
+                           fontSize: 9,
+                         ),
+                       ),
+                     ],
+                      const SizedBox(height: 4),
+                      if (_serviceLog.isNotEmpty)
+                        Text(
+                          _serviceLog,
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 9),
+                        ),
+                   ],
+                 ),
+               ),
+           ],
+         ),
+       ),
+     );
+   }
+
+    void _skipTutorial() {
+      _learnTimer?.cancel();
+      _bravoTimer?.cancel();
+      setState(() {
+        _learnIdx = _shapes.length - 1;
+        _phase = _Phase.ready;
+      });
+    }
+
+   Widget _sensorCell({
+     required String title,
+     required String emoji,
+     required double x,
+     required double y,
+     required double z,
+   }) {
+     return Container(
+       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+       decoration: BoxDecoration(
+         color: Colors.white.withValues(alpha: 0.08),
+         borderRadius: BorderRadius.circular(8),
+         border: Border.all(
+           color: Colors.white.withValues(alpha: 0.15),
+         ),
+       ),
+       child: Column(
+         mainAxisSize: MainAxisSize.min,
+         crossAxisAlignment: CrossAxisAlignment.start,
+         children: [
+           Text(
+             '$emoji $title',
+             style: TextStyle(
+               color: AppColors.purple300,
+               fontSize: 10,
+               fontWeight: FontWeight.w600,
+             ),
+           ),
+           const SizedBox(height: 3),
+           Text(
+             'X: ${x.toStringAsFixed(2)}',
+             style: const TextStyle(
+               color: AppColors.yellow400,
+               fontSize: 10,
+             ),
+           ),
+           Text(
+             'Y: ${y.toStringAsFixed(2)}',
+             style: const TextStyle(
+               color: AppColors.yellow400,
+               fontSize: 10,
+             ),
+           ),
+           Text(
+             'Z: ${z.toStringAsFixed(2)}',
+             style: const TextStyle(
+               color: AppColors.yellow400,
+               fontSize: 10,
+             ),
+           ),
+         ],
+       ),
+     );
+   }
+
+   Widget _pulseDot(Color color) {
+     return AnimatedBuilder(
+       animation: _pulse,
+       builder: (context, child) => Container(
+         width: 8,
+         height: 8,
+         decoration: BoxDecoration(
+           color: color.withValues(alpha: 0.5 + 0.5 * _pulse.value),
+           shape: BoxShape.circle,
+         ),
+       ),
+     );
+   }
+ }

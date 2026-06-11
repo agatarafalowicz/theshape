@@ -9,7 +9,7 @@ class ApiService {
   // static const String baseUrl = 'http://192.168.1.100:5000';
 
   // Na razie localhost:
-  static const String baseUrl = 'http://localhost:5000';
+  static const String baseUrl = 'https://ai.darkstarlight.eu';
 
   static Future<Map<String, dynamic>> login({
     required String username,

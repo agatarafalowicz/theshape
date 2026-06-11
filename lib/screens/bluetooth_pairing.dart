@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../app_theme.dart';
 import '../models/metawear_device.dart';
@@ -64,7 +65,38 @@ class _BluetoothPairingPageState extends State<BluetoothPairingPage>
       setState(() => _logMessage = msg);
     });
 
-    _startScanning();
+    // Najpierw poproś użytkownika o wymagane uprawnienia, a potem rozpocznij skanowanie
+    _requestPermissionsAndScan();
+  }
+
+  Future<void> _requestPermissionsAndScan() async {
+    try {
+      final statuses = await [
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.location,
+      ].request();
+
+      // Sprawdź czy któreś z uprawnień jest odrzucone lub trwale odrzucone
+      bool anyDenied = statuses.values.any((s) => s.isDenied || s.isPermanentlyDenied);
+
+      if (anyDenied) {
+        if (!mounted) return;
+        setState(() {
+          _error = 'Aplikacja wymaga uprawnień Bluetooth i lokalizacji, aby wyszukać urządzenia.';
+          _isScanning = false;
+        });
+        return;
+      }
+
+      // Jeśli uprawnienia przyznane — rozpocznij skanowanie
+      await _startScanning();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Błąd przy żądaniu uprawnień: ${e.toString()}';
+      });
+    }
   }
 
   @override

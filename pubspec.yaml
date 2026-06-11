@@ -15,6 +15,7 @@ dependencies:
   shared_preferences: ^2.3.2
   google_fonts: ^6.2.1
   flutter_blue_plus: ^1.31.13
+  permission_handler: ^12.0.3
   path_provider: ^2.1.1
   http: ^1.2.0
 

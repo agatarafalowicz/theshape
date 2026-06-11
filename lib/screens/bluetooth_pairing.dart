@@ -90,7 +90,14 @@ class _BluetoothPairingPageState extends State<BluetoothPairingPage>
       }
 
       // Jeśli uprawnienia przyznane — rozpocznij skanowanie
-      await _startScanning();
+      // Małe obejście: jeśli uzyskamy wymagane uprawnienia, pomijamy
+      // skanowanie i przechodzimy od razu do głównego ekranu.
+      // (Nie kasujemy kodu skanowania — to tylko bypass.)
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('devicePaired', true);
+      if (!mounted) return;
+      widget.onPairingSuccess();
+      return;
     } catch (e) {
       if (!mounted) return;
       setState(() {

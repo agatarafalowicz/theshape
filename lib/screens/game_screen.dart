@@ -223,6 +223,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     } catch (e) {
       debugPrint('SAVE GAME ERROR: $e');
     }
+    // After saving result, fully disconnect and forget the device so the
+    // next game requires explicit pairing/connection.
+    try {
+      await _service.disconnect();
+    } catch (_) {}
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('selectedDevice');
+    } catch (_) {}
+    setState(() {
+      _connected = false;
+      _serviceLog = '';
+    });
+
     widget.onGameFinished();
   }
 
@@ -451,7 +465,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         children: [
           GestureDetector(
             onTap: () async {
-              if (_service.isRunning) await _service.stopIMU();
+              try {
+                if (_service.isRunning) await _service.stopIMU();
+              } catch (_) {}
+              try {
+                await _service.disconnect();
+              } catch (_) {}
+              try {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.remove('selectedDevice');
+              } catch (_) {}
+              setState(() {
+                _connected = false;
+                _serviceLog = '';
+              });
               widget.onClose();
             },
             child: Container(
@@ -1018,7 +1045,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           const SizedBox(height: 10),
           GestureDetector(
             onTap: () async {
-              if (_service.isRunning) await _service.stopIMU();
+              try {
+                if (_service.isRunning) await _service.stopIMU();
+              } catch (_) {}
+              try {
+                await _service.disconnect();
+              } catch (_) {}
+              try {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.remove('selectedDevice');
+              } catch (_) {}
+              setState(() {
+                _connected = false;
+                _serviceLog = '';
+              });
               widget.onClose();
             },
             child: Container(

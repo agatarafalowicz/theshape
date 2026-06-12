@@ -83,6 +83,9 @@ class MetaWearService {
   }
 
   Future<void> connect(String mac) async {
+    if (_device != null || _cmd != null || _notify != null || _running) {
+      await disconnect();
+    }
     _log('Łączę z $mac...');
     _device = BluetoothDevice.fromId(mac);
     _emitConnectionState(false);

@@ -114,6 +114,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   bool _isInitializingSensor = false;
   bool _connected = false;
   String _serviceLog = '';
+  String? _rememberedDeviceId;
+  String? _rememberedDeviceName;
 
   // Ostatnie odczytane wartości z czujników
   SensorSample? _lastAcc;
@@ -147,6 +149,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       setState(() => _serviceLog = m);
     });
+    _loadRememberedDevice();
+  }
+
+  Future<void> _loadRememberedDevice() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _rememberedDeviceId = prefs.getString('selectedDevice');
+      _rememberedDeviceName = prefs.getString('selectedDeviceName');
+    });
   }
 
   @override
@@ -169,11 +181,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     if (_service.isRunning) return;
     setState(() => _isInitializingSensor = true);
     final prefs = await SharedPreferences.getInstance();
-    final deviceId = prefs.getString('selectedDevice');
+    final deviceId = _rememberedDeviceId ?? prefs.getString('selectedDevice');
     if (deviceId != null && deviceId.isNotEmpty) {
       try {
         await _service.connect(deviceId);
         await _service.startIMU();
+        if (mounted) {
+          setState(() => _rememberedDeviceId = deviceId);
+        }
       } catch (e) {
         debugPrint('IMU connect error: $e');
       }
@@ -1167,8 +1182,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       const SizedBox(width: 8),
                       Text(
                         _connected
-                            ? 'Czujnik: połączony'
-                            : (_service.isRunning ? 'Czujnik: aktywny' : 'Uruchom czujnik BLE'),
+                            ? 'Czujnik: połączony${_rememberedDeviceName != null ? ' • $_rememberedDeviceName' : ''}'
+                            : (_service.isRunning
+                                ? 'Czujnik: aktywny${_rememberedDeviceName != null ? ' • $_rememberedDeviceName' : ''}'
+                                : 'Uruchom czujnik BLE'),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 14,
@@ -1266,6 +1283,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                                       await _service.startIMU();
                                       final prefs = await SharedPreferences.getInstance();
                                       await prefs.setString('selectedDevice', d['id']);
+                                       await prefs.setString('selectedDeviceName', d['name']);
+                                       if (mounted) {
+                                         setState(() {
+                                           _rememberedDeviceId = d['id'];
+                                           _rememberedDeviceName = d['name'] as String?;
+                                         });
+                                       }
                                       if (!mounted) return;
                                       Navigator.of(context, rootNavigator: true).pop();
                                     } catch (e) {

@@ -27,6 +27,7 @@ class _MainPageState extends State<MainPage>
   String _displayName = 'Graczu';
   int? _userId;
   int? get userId => _userId;
+  String? _connectedDeviceName;
 
   Map<String, dynamic>? _stats;
   Map<String, dynamic>? _weeklyStats;
@@ -65,6 +66,7 @@ class _MainPageState extends State<MainPage>
         _userId = data['user_id'] as int?;
         _displayName =
             (data['user_name'] as String?) ?? 'Graczu';
+        _connectedDeviceName = prefs.getString('selectedDeviceName');
       });
     } catch (_) {}
   }
@@ -170,6 +172,7 @@ class _MainPageState extends State<MainPage>
                     _loadStats();
                     _loadLeaderboard();
                     _loadWeeklyStats();
+                    _loadUser();
                   },
                   onClose: () => setState(() => _showGame = false),
                 ),
@@ -759,11 +762,9 @@ class _MainPageState extends State<MainPage>
   }
 
   Widget _buildSettingsTab() {
-    final items = const [
-      _SettingItem('Urządzenie Bluetooth', 'MetaMotion', '📡'),
-      _SettingItem('Tryb symulacji', 'Włączony', '🔧'),
-      _SettingItem('Powiadomienia', 'Włączone', '🔔'),
-      _SettingItem('Język aplikacji', 'Polski', '🌐'),
+    final items = [
+      _SettingItem('Urządzenie', _connectedDeviceName ?? 'Brak połączenia', '📡'),
+      const _SettingItem('Język aplikacji', 'Polski', '🌐'),
     ];
 
     return SingleChildScrollView(
@@ -771,12 +772,12 @@ class _MainPageState extends State<MainPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Ustawienia',
+          const Text('Profil',
               style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,
                   fontWeight: FontWeight.w600)),
-          Text('Zarządzaj swoim kontem',
+          Text('Twoje dane',
               style: TextStyle(color: AppColors.purple300, fontSize: 14)),
           const SizedBox(height: 32),
           Container(
@@ -868,9 +869,6 @@ class _MainPageState extends State<MainPage>
                     Text(item.value,
                         style: TextStyle(
                             color: AppColors.purple300, fontSize: 14)),
-                    const SizedBox(width: 8),
-                    Icon(Icons.chevron_right,
-                        size: 18, color: AppColors.purple400),
                   ],
                 ),
               ),
@@ -933,7 +931,7 @@ class _MainPageState extends State<MainPage>
             children: [
               _navItem(_Tab.game, Icons.sports_esports, 'Gra'),
               _navItem(_Tab.home, Icons.home, 'Inni gracze'),
-              _navItem(_Tab.settings, Icons.menu, 'Ustawienia'),
+              _navItem(_Tab.settings, Icons.person, 'Profil'),
             ],
           ),
         ),

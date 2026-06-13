@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:io';
+
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'screens/bluetooth_pairing.dart';
 import 'screens/login_page.dart';
@@ -29,10 +32,9 @@ class TheShapeApp extends StatelessWidget {
       title: 'The Shape',
       debugShowCheckedModeBanner: false,
       theme: base.copyWith(
-        textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
-          bodyColor: Colors.white,
-          displayColor: Colors.white,
-        ),
+        textTheme: GoogleFonts.interTextTheme(
+          base.textTheme,
+        ).apply(bodyColor: Colors.white, displayColor: Colors.white),
         scaffoldBackgroundColor: const Color(0xFF312E81),
       ),
       home: const _AppRoot(),
@@ -75,6 +77,23 @@ class _AppRootState extends State<_AppRoot> {
   }
 
   Future<void> _handleLoginSuccess() async {
+    try {
+      if (Platform.isIOS) {
+        final bt = await Permission.bluetooth.status;
+        if (bt.isGranted) {
+          setState(() => _state = _AppState.main);
+          return;
+        }
+      } else {
+        final scan = await Permission.bluetoothScan.status;
+        final connect = await Permission.bluetoothConnect.status;
+        final loc = await Permission.location.status;
+        if (scan.isGranted && connect.isGranted && loc.isGranted) {
+          setState(() => _state = _AppState.main);
+          return;
+        }
+      }
+    } catch (_) {}
     setState(() => _state = _AppState.bluetooth);
   }
 

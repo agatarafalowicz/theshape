@@ -414,7 +414,7 @@ class _MainPageState extends State<MainPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Pozostali gracze',
+                    const Text('Inni gracze',
                         style: TextStyle(
                             color: Colors.white,
                             fontSize: 24,
@@ -444,7 +444,7 @@ class _MainPageState extends State<MainPage>
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text('Twoje statystyki vs. inni - ostatnie 7 dni',
+            child: Text('Tygodniowe porównanie wyników',
                 style: TextStyle(color: AppColors.purple300, fontSize: 14)),
           ),
           _statsCard(),
@@ -512,7 +512,7 @@ class _MainPageState extends State<MainPage>
                       ],
                     ),
                     Text(
-                        '${_stats?['wins'] ?? 0} wygranych · rekord: ${_formatScore((_stats?['rank']?['points'] ?? 0) as int)} pkt',
+                        '${_stats?['wins'] ?? 0} wygranych',
                         style: TextStyle(
                             color: AppColors.purple300, fontSize: 12)),
                   ],
@@ -655,14 +655,14 @@ class _MainPageState extends State<MainPage>
     final avgPtsAvg =
         ((_weeklyStats!['avg_points']?['avg'] ?? 0.0) as num).toDouble();
     final playtimeYou =
-        ((_weeklyStats!['playtime']?['you'] ?? 0) as num).toDouble() / 60;
+        ((_weeklyStats!['playtime']?['you'] ?? 0) as num).toDouble();
     final playtimeAvg =
-        ((_weeklyStats!['playtime']?['avg'] ?? 0.0) as num).toDouble() / 60;
+        ((_weeklyStats!['playtime']?['avg'] ?? 0.0) as num).toDouble();
 
     final stats = [
-      _Stat('Procent wygranych', winRateYou, winRateAvg, '%'),
-      _Stat('Średnia punktów', avgPtsYou, avgPtsAvg, ''),
-      _Stat('Czas gry', playtimeYou, playtimeAvg, 'min'),
+      _Stat('Wygrane', winRateYou, winRateAvg, '%', _StatType.winRate),
+      _Stat('Średnia punktów', avgPtsYou, avgPtsAvg, '', _StatType.avgPoints),
+      _Stat('Czas', playtimeYou, playtimeAvg, '', _StatType.playtime),
     ];
 
     return Container(
@@ -704,10 +704,10 @@ class _MainPageState extends State<MainPage>
                 children: [
                   const TextSpan(text: 'Ty: '),
                   TextSpan(
-                    text: '${_fmt(s.me)}${s.unit}',
+                    text: _fmtStatVal(s, s.me),
                     style: const TextStyle(color: AppColors.yellow400),
                   ),
-                  TextSpan(text: ' · Pozostali: ${_fmt(s.avg)}${s.unit}'),
+                  TextSpan(text: ' · Inni: ${_fmtStatVal(s, s.avg)}'),
                 ],
               ),
             ),
@@ -738,9 +738,24 @@ class _MainPageState extends State<MainPage>
     );
   }
 
-  String _fmt(num v) {
-    if (v == v.toInt()) return v.toInt().toString();
-    return v.toString();
+  String _fmtPlaytime(num seconds) {
+    final totalSec = seconds.round();
+    final min = totalSec ~/ 60;
+    final sec = totalSec % 60;
+    if (min == 0) return '${sec}s';
+    if (sec == 0) return '${min}m';
+    return '${min}m ${sec}s';
+  }
+
+  String _fmtStatVal(_Stat s, num v) {
+    switch (s.type) {
+      case _StatType.winRate:
+        return '${v.round()}${s.unit}';
+      case _StatType.avgPoints:
+        return v.toStringAsFixed(1);
+      case _StatType.playtime:
+        return _fmtPlaytime(v);
+    }
   }
 
   Widget _buildSettingsTab() {
@@ -917,7 +932,7 @@ class _MainPageState extends State<MainPage>
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _navItem(_Tab.game, Icons.sports_esports, 'Gra'),
-              _navItem(_Tab.home, Icons.home, 'Pozostali gracze'),
+              _navItem(_Tab.home, Icons.home, 'Inni gracze'),
               _navItem(_Tab.settings, Icons.menu, 'Ustawienia'),
             ],
           ),
@@ -1227,12 +1242,15 @@ class _RankItem {
   });
 }
 
+enum _StatType { winRate, avgPoints, playtime }
+
 class _Stat {
   final String label;
   final num me;
   final num avg;
   final String unit;
-  const _Stat(this.label, this.me, this.avg, this.unit);
+  final _StatType type;
+  const _Stat(this.label, this.me, this.avg, this.unit, this.type);
 }
 
 class _SettingItem {

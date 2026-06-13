@@ -1299,7 +1299,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 await [
                   Permission.bluetoothScan,
                   Permission.bluetoothConnect,
-                  Permission.locationWhenInUse,
+                  Permission.location,
                 ].request();
               } else if (Platform.isIOS) {
                 final bt = await Permission.bluetooth.request();
@@ -1510,7 +1510,30 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                                     try {
                                       await FlutterBluePlus.stopScan();
                                       await sub?.cancel();
-                                      await _service.connect(d['id']);
+
+                                      await Future.delayed(
+                                        const Duration(milliseconds: 500),
+                                      );
+
+                                      int attempts = 0;
+                                      const int maxRetries = 3;
+                                      bool isConnected = false;
+
+                                      while (!isConnected &&
+                                          attempts < maxRetries) {
+                                        try {
+                                          attempts++;
+                                          await _service.connect(d['id']);
+                                          isConnected = true;
+                                        } catch (e) {
+                                          if (attempts >= maxRetries) {
+                                            rethrow;
+                                          }
+                                          await Future.delayed(
+                                            const Duration(milliseconds: 500),
+                                          );
+                                        }
+                                      }
                                       await _service.initializeBoard();
                                       await _service.startIMU();
                                       final prefs =

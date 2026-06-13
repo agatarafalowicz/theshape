@@ -63,8 +63,7 @@ class _MainPageState extends State<MainPage>
 
       setState(() {
         _userId = data['user_id'] as int?;
-        _displayName =
-            (data['user_name'] as String?) ?? 'Graczu';
+        _displayName = (data['user_name'] as String?) ?? 'Graczu';
       });
     } catch (_) {}
   }
@@ -156,12 +155,7 @@ class _MainPageState extends State<MainPage>
                 },
               ),
             ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _bottomNav(),
-            ),
+            Positioned(left: 0, right: 0, bottom: 0, child: _bottomNav()),
             if (_showGame)
               Positioned.fill(
                 child: GameScreen(
@@ -197,22 +191,31 @@ class _MainPageState extends State<MainPage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Witaj,',
-                          style: TextStyle(
-                              color: AppColors.purple300, fontSize: 14)),
-                      Text(_displayName,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600)),
+                      Text(
+                        'Witaj,',
+                        style: TextStyle(
+                          color: AppColors.purple300,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        _displayName,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(999),
@@ -222,9 +225,10 @@ class _MainPageState extends State<MainPage>
                     children: [
                       _pulseDot(AppColors.green400),
                       const SizedBox(width: 8),
-                      const Text('Podłączono',
-                          style: TextStyle(
-                              color: Colors.white, fontSize: 12)),
+                      const Text(
+                        'Podłączono',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
                     ],
                   ),
                 ),
@@ -273,41 +277,35 @@ class _MainPageState extends State<MainPage>
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.gavel,
-                      color: Colors.white, size: 40),
+                  child: const Icon(Icons.gavel, color: Colors.white, size: 40),
                 ),
                 const SizedBox(height: 24),
                 const Text(
                   'Pora zmierzyć się\nz dzisiejszą grą!',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                      color: Colors.white, fontSize: 22, height: 1.25),
+                    color: Colors.white,
+                    fontSize: 22,
+                    height: 1.25,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Twój czujnik MetaMotion jest gotowy.\nSprawdź swoje możliwości!',
+                  'Przygotuj swój czujnik MetaMotion.\nSprawdź swoje możliwości!',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.purple300, fontSize: 14),
                 ),
                 const SizedBox(height: 24),
                 Row(
                   children: [
-                    _statTile(
-                      '${_stats?['wins'] ?? 0}',
-                      'Wygrane',
-                    ),
+                    _statTile('${_stats?['wins'] ?? 0}', 'Wygrane'),
                     const SizedBox(width: 12),
                     _statTile(
-                      _formatScore(
-                        (_stats?['rank']?['points'] ?? 0) as int,
-                      ),
+                      _formatScore((_stats?['rank']?['points'] ?? 0) as int),
                       'Rekord',
                     ),
                     const SizedBox(width: 12),
-                    _statTile(
-                      '#${_stats?['rank']?['rank'] ?? '-'}',
-                      'Ranking',
-                    ),
+                    _statTile('#${_stats?['rank']?['rank'] ?? '-'}', 'Ranking'),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -331,14 +329,20 @@ class _MainPageState extends State<MainPage>
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.sports_esports,
-                              color: Colors.white, size: 24),
+                          Icon(
+                            Icons.sports_esports,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                           SizedBox(width: 12),
-                          Text('Zagraj w grę',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600)),
+                          Text(
+                            'Zagraj w grę',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -361,13 +365,18 @@ class _MainPageState extends State<MainPage>
         ),
         child: Column(
           children: [
-            Text(value,
-                style: const TextStyle(
-                    color: AppColors.yellow400,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600)),
-            Text(label,
-                style: TextStyle(color: AppColors.purple300, fontSize: 12)),
+            Text(
+              value,
+              style: const TextStyle(
+                color: AppColors.yellow400,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(color: AppColors.purple300, fontSize: 12),
+            ),
           ],
         ),
       ),
@@ -375,27 +384,18 @@ class _MainPageState extends State<MainPage>
   }
 
   Widget _buildHomeTab() {
-
-
     if (_loadingStats) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     final allRankings = _leaderboard.map((player) {
       return _RankItem(
         name: player['user_name'],
-        avatar: player['user_name']
-            .substring(0, 2)
-            .toUpperCase(),
+        avatar: player['user_name'].substring(0, 2).toUpperCase(),
         score: player['points'],
         won: player['won'] ?? false,
         gradient: const LinearGradient(
-          colors: [
-            AppColors.indigo500,
-            AppColors.purple600,
-          ],
+          colors: [AppColors.indigo500, AppColors.purple600],
         ),
         isMe: player['user_id'] == _userId,
       );
@@ -414,15 +414,22 @@ class _MainPageState extends State<MainPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Pozostali gracze',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600)),
-                    Text('Rywalizuj z innymi',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: AppColors.purple300, fontSize: 14)),
+                    const Text(
+                      'Pozostali gracze',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      'Rywalizuj z innymi',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.purple300,
+                        fontSize: 14,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -434,8 +441,10 @@ class _MainPageState extends State<MainPage>
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text('Ranking graczy',
-                style: TextStyle(color: AppColors.purple300, fontSize: 14)),
+            child: Text(
+              'Ranking graczy',
+              style: TextStyle(color: AppColors.purple300, fontSize: 14),
+            ),
           ),
           for (int i = 0; i < allRankings.length; i++) ...[
             _rankingTile(allRankings[i], i + 1),
@@ -444,8 +453,10 @@ class _MainPageState extends State<MainPage>
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text('Twoje statystyki vs. inni - ostatnie 7 dni',
-                style: TextStyle(color: AppColors.purple300, fontSize: 14)),
+            child: Text(
+              'Twoje statystyki vs. inni - ostatnie 7 dni',
+              style: TextStyle(color: AppColors.purple300, fontSize: 14),
+            ),
           ),
           _statsCard(),
         ],
@@ -470,8 +481,10 @@ class _MainPageState extends State<MainPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Twoja pozycja w rankingu',
-              style: TextStyle(color: AppColors.purple300, fontSize: 12)),
+          Text(
+            'Twoja pozycja w rankingu',
+            style: TextStyle(color: AppColors.purple300, fontSize: 12),
+          ),
           const SizedBox(height: 6),
           Row(
             children: [
@@ -485,11 +498,14 @@ class _MainPageState extends State<MainPage>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
-                child: Text(_initials,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14)),
+                child: Text(
+                  _initials,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -499,37 +515,52 @@ class _MainPageState extends State<MainPage>
                     Row(
                       children: [
                         Flexible(
-                          child: Text(_displayName,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600)),
+                          child: Text(
+                            _displayName,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 4),
-                        Text('(Ty)',
-                            style: TextStyle(
-                                color: AppColors.purple300, fontSize: 12)),
+                        Text(
+                          '(Ty)',
+                          style: TextStyle(
+                            color: AppColors.purple300,
+                            fontSize: 12,
+                          ),
+                        ),
                       ],
                     ),
                     Text(
-                        '${_stats?['wins'] ?? 0} wygranych · rekord: ${_formatScore((_stats?['rank']?['points'] ?? 0) as int)} pkt',
-                        style: TextStyle(
-                            color: AppColors.purple300, fontSize: 12)),
+                      '${_stats?['wins'] ?? 0} wygranych · rekord: ${_formatScore((_stats?['rank']?['points'] ?? 0) as int)} pkt',
+                      style: TextStyle(
+                        color: AppColors.purple300,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.yellow400.withValues(alpha: 0.20),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(myRank != null ? '#$myRank' : '-',
-                    style: const TextStyle(
-                        color: AppColors.yellow400,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600)),
+                child: Text(
+                  myRank != null ? '#$myRank' : '-',
+                  style: const TextStyle(
+                    color: AppColors.yellow400,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ],
           ),
@@ -543,11 +574,14 @@ class _MainPageState extends State<MainPage>
       if (rank == 1) return const Text('🥇', style: TextStyle(fontSize: 20));
       if (rank == 2) return const Text('🥈', style: TextStyle(fontSize: 20));
       if (rank == 3) return const Text('🥉', style: TextStyle(fontSize: 20));
-      return Text('#$rank',
-          style: TextStyle(
-              color: AppColors.purple400,
-              fontSize: 14,
-              fontWeight: FontWeight.w500));
+      return Text(
+        '#$rank',
+        style: TextStyle(
+          color: AppColors.purple400,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+      );
     }
 
     return Container(
@@ -558,9 +592,10 @@ class _MainPageState extends State<MainPage>
             : Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-            color: r.isMe
-                ? AppColors.indigo400.withValues(alpha: 0.30)
-                : Colors.white.withValues(alpha: 0.10)),
+          color: r.isMe
+              ? AppColors.indigo400.withValues(alpha: 0.30)
+              : Colors.white.withValues(alpha: 0.10),
+        ),
       ),
       child: Row(
         children: [
@@ -574,11 +609,14 @@ class _MainPageState extends State<MainPage>
               borderRadius: BorderRadius.circular(12),
             ),
             alignment: Alignment.center,
-            child: Text(r.avatar,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12)),
+            child: Text(
+              r.avatar,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -588,38 +626,50 @@ class _MainPageState extends State<MainPage>
                 Row(
                   children: [
                     Flexible(
-                      child: Text(r.name,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500)),
+                      child: Text(
+                        r.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                     if (r.isMe) ...[
                       const SizedBox(width: 4),
-                      Text('(Ty)',
-                          style: TextStyle(
-                              color: AppColors.purple400, fontSize: 12)),
+                      Text(
+                        '(Ty)',
+                        style: TextStyle(
+                          color: AppColors.purple400,
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
                   ],
                 ),
-                Text(r.won ? 'Wygrana' : 'Przegrana',
-                    style: TextStyle(
-                        color: AppColors.purple400, fontSize: 12)),
+                Text(
+                  r.won ? 'Wygrana' : 'Przegrana',
+                  style: TextStyle(color: AppColors.purple400, fontSize: 12),
+                ),
               ],
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(_formatScore(r.score),
-                  style: const TextStyle(
-                      color: AppColors.yellow400,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600)),
-              Text('pkt',
-                  style: TextStyle(
-                      color: AppColors.purple400, fontSize: 12)),
+              Text(
+                _formatScore(r.score),
+                style: const TextStyle(
+                  color: AppColors.yellow400,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                'pkt',
+                style: TextStyle(color: AppColors.purple400, fontSize: 12),
+              ),
             ],
           ),
         ],
@@ -650,10 +700,10 @@ class _MainPageState extends State<MainPage>
         ((_weeklyStats!['win_rate']?['you'] ?? 0.0) as num).toDouble() * 100;
     final winRateAvg =
         ((_weeklyStats!['win_rate']?['avg'] ?? 0.0) as num).toDouble() * 100;
-    final avgPtsYou =
-        ((_weeklyStats!['avg_points']?['you'] ?? 0.0) as num).toDouble();
-    final avgPtsAvg =
-        ((_weeklyStats!['avg_points']?['avg'] ?? 0.0) as num).toDouble();
+    final avgPtsYou = ((_weeklyStats!['avg_points']?['you'] ?? 0.0) as num)
+        .toDouble();
+    final avgPtsAvg = ((_weeklyStats!['avg_points']?['avg'] ?? 0.0) as num)
+        .toDouble();
     final playtimeYou =
         ((_weeklyStats!['playtime']?['you'] ?? 0) as num).toDouble() / 60;
     final playtimeAvg =
@@ -693,14 +743,17 @@ class _MainPageState extends State<MainPage>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(s.label,
-                style: TextStyle(color: AppColors.purple300, fontSize: 12)),
+            Text(
+              s.label,
+              style: TextStyle(color: AppColors.purple300, fontSize: 12),
+            ),
             RichText(
               text: TextSpan(
                 style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500),
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
                 children: [
                   const TextSpan(text: 'Ty: '),
                   TextSpan(
@@ -756,13 +809,18 @@ class _MainPageState extends State<MainPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Ustawienia',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600)),
-          Text('Zarządzaj swoim kontem',
-              style: TextStyle(color: AppColors.purple300, fontSize: 14)),
+          const Text(
+            'Ustawienia',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            'Zarządzaj swoim kontem',
+            style: TextStyle(color: AppColors.purple300, fontSize: 14),
+          ),
           const SizedBox(height: 32),
           Container(
             padding: const EdgeInsets.all(20),
@@ -790,22 +848,28 @@ class _MainPageState extends State<MainPage>
                     borderRadius: BorderRadius.circular(16),
                   ),
                   alignment: Alignment.center,
-                  child: Text(_initials,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600)),
+                  child: Text(
+                    _initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_displayName,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600)),
+                      Text(
+                        _displayName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Row(
                         children: [
@@ -818,9 +882,13 @@ class _MainPageState extends State<MainPage>
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Text('Aktywny',
-                              style: TextStyle(
-                                  color: AppColors.green400, fontSize: 12)),
+                          Text(
+                            'Aktywny',
+                            style: TextStyle(
+                              color: AppColors.green400,
+                              fontSize: 12,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -838,24 +906,36 @@ class _MainPageState extends State<MainPage>
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12),
-                  border:
-                      Border.all(color: Colors.white.withValues(alpha: 0.10)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.10),
+                  ),
                 ),
                 child: Row(
                   children: [
                     Text(item.icon, style: const TextStyle(fontSize: 20)),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(item.label,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 14)),
+                      child: Text(
+                        item.label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
-                    Text(item.value,
-                        style: TextStyle(
-                            color: AppColors.purple300, fontSize: 14)),
+                    Text(
+                      item.value,
+                      style: TextStyle(
+                        color: AppColors.purple300,
+                        fontSize: 14,
+                      ),
+                    ),
                     const SizedBox(width: 8),
-                    Icon(Icons.chevron_right,
-                        size: 18, color: AppColors.purple400),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: AppColors.purple400,
+                    ),
                   ],
                 ),
               ),
@@ -863,8 +943,10 @@ class _MainPageState extends State<MainPage>
           ],
           const SizedBox(height: 16),
           Center(
-            child: Text('The Shape v1.0.0',
-                style: TextStyle(color: AppColors.purple500, fontSize: 12)),
+            child: Text(
+              'The Shape v1.0.0',
+              style: TextStyle(color: AppColors.purple500, fontSize: 12),
+            ),
           ),
           const SizedBox(height: 24),
           GestureDetector(
@@ -875,18 +957,22 @@ class _MainPageState extends State<MainPage>
                 color: AppColors.red500.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                    color: AppColors.red500.withValues(alpha: 0.30)),
+                  color: AppColors.red500.withValues(alpha: 0.30),
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.logout, color: AppColors.red400, size: 20),
                   const SizedBox(width: 12),
-                  Text('Wyloguj się',
-                      style: TextStyle(
-                          color: AppColors.red400,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500)),
+                  Text(
+                    'Wyloguj się',
+                    style: TextStyle(
+                      color: AppColors.red400,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -943,15 +1029,20 @@ class _MainPageState extends State<MainPage>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon,
-                size: 24,
-                color: selected ? AppColors.yellow400 : AppColors.purple400),
+            Icon(
+              icon,
+              size: 24,
+              color: selected ? AppColors.yellow400 : AppColors.purple400,
+            ),
             const SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(
-                    color: selected ? Colors.white : AppColors.purple400,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500)),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : AppColors.purple400,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ),
       ),
@@ -973,22 +1064,27 @@ class _MainPageState extends State<MainPage>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Wylogować się?',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600)),
+              const Text(
+                'Wylogować się?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 8),
-              Text('Czy na pewno chcesz się wylogować z aplikacji?',
-                  style: TextStyle(
-                      color: AppColors.purple300, fontSize: 14)),
+              Text(
+                'Czy na pewno chcesz się wylogować z aplikacji?',
+                style: TextStyle(color: AppColors.purple300, fontSize: 14),
+              ),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   _outlineButton(
-                      label: 'Anuluj',
-                      onTap: () => Navigator.of(ctx).pop()),
+                    label: 'Anuluj',
+                    onTap: () => Navigator.of(ctx).pop(),
+                  ),
                   const SizedBox(width: 8),
                   _destructiveButton(
                     label: 'Wyloguj',
@@ -1027,47 +1123,58 @@ class _MainPageState extends State<MainPage>
               children: [
                 Row(
                   children: [
-                    Icon(Icons.person_add_alt_1,
-                        color: AppColors.purple400, size: 20),
+                    Icon(
+                      Icons.person_add_alt_1,
+                      color: AppColors.purple400,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
-                    const Text('Dodaj znajomego',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600)),
+                    const Text(
+                      'Dodaj znajomego',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text('Wpisz adres email znajomego, aby wysłać zaproszenie.',
-                    style: TextStyle(
-                        color: AppColors.purple300, fontSize: 14)),
+                Text(
+                  'Wpisz adres email znajomego, aby wysłać zaproszenie.',
+                  style: TextStyle(color: AppColors.purple300, fontSize: 14),
+                ),
                 const SizedBox(height: 16),
                 if (!added)
                   TextField(
                     controller: controller,
                     keyboardType: TextInputType.emailAddress,
-                    style:
-                        const TextStyle(color: Colors.white, fontSize: 14),
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
                     decoration: InputDecoration(
                       hintText: 'email@znajomy.pl',
                       hintStyle: TextStyle(
-                          color: AppColors.purple400, fontSize: 14),
+                        color: AppColors.purple400,
+                        fontSize: 14,
+                      ),
                       filled: true,
                       fillColor: Colors.white.withValues(alpha: 0.10),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.20)),
+                          color: Colors.white.withValues(alpha: 0.20),
+                        ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.20)),
+                          color: Colors.white.withValues(alpha: 0.20),
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: AppColors.purple400),
+                        borderSide: const BorderSide(
+                          color: AppColors.purple400,
+                        ),
                       ),
                     ),
                     onChanged: (_) => setLocalState(() {}),
@@ -1080,10 +1187,13 @@ class _MainPageState extends State<MainPage>
                         children: [
                           const Text('✅', style: TextStyle(fontSize: 36)),
                           const SizedBox(height: 8),
-                          Text('Zaproszenie wysłane!',
-                              style: TextStyle(
-                                  color: AppColors.green400,
-                                  fontWeight: FontWeight.w500)),
+                          Text(
+                            'Zaproszenie wysłane!',
+                            style: TextStyle(
+                              color: AppColors.green400,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1094,8 +1204,9 @@ class _MainPageState extends State<MainPage>
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       _outlineButton(
-                          label: 'Anuluj',
-                          onTap: () => Navigator.of(ctx).pop()),
+                        label: 'Anuluj',
+                        onTap: () => Navigator.of(ctx).pop(),
+                      ),
                       const SizedBox(width: 8),
                       _gradientButtonSmall(
                         label: 'Wyślij zaproszenie',
@@ -1104,10 +1215,12 @@ class _MainPageState extends State<MainPage>
                           if (controller.text.trim().isEmpty) return;
                           setLocalState(() => added = true);
                           final nav = Navigator.of(ctx);
-                          Future.delayed(const Duration(milliseconds: 1500),
-                              () {
-                            if (nav.canPop()) nav.pop();
-                          });
+                          Future.delayed(
+                            const Duration(milliseconds: 1500),
+                            () {
+                              if (nav.canPop()) nav.pop();
+                            },
+                          );
                         },
                       ),
                     ],
@@ -1121,8 +1234,7 @@ class _MainPageState extends State<MainPage>
     );
   }
 
-  Widget _outlineButton(
-      {required String label, required VoidCallback onTap}) {
+  Widget _outlineButton({required String label, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1132,17 +1244,22 @@ class _MainPageState extends State<MainPage>
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
         ),
-        child: Text(label,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500)),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ),
     );
   }
 
-  Widget _destructiveButton(
-      {required String label, required VoidCallback onTap}) {
+  Widget _destructiveButton({
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1151,19 +1268,23 @@ class _MainPageState extends State<MainPage>
           color: const Color(0xFFD4183D),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Text(label,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500)),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ),
     );
   }
 
-  Widget _gradientButtonSmall(
-      {required String label,
-      required bool enabled,
-      required VoidCallback onTap}) {
+  Widget _gradientButtonSmall({
+    required String label,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
     return Opacity(
       opacity: enabled ? 1 : 0.5,
       child: GestureDetector(
@@ -1174,11 +1295,14 @@ class _MainPageState extends State<MainPage>
             gradient: AppColors.indigoPurpleGradient,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Text(label,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500)),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
       ),
     );
@@ -1206,8 +1330,14 @@ class _Friend {
   final int score;
   final int wins;
   final LinearGradient gradient;
-  const _Friend(this.id, this.name, this.avatar, this.score, this.wins,
-      this.gradient);
+  const _Friend(
+    this.id,
+    this.name,
+    this.avatar,
+    this.score,
+    this.wins,
+    this.gradient,
+  );
 }
 
 class _RankItem {

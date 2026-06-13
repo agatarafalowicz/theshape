@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/api_service.dart';
 
 import '../app_theme.dart';
 import '../widgets/decorative_blobs.dart';
@@ -17,16 +18,9 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  static const _mockUser = {
-    'id': 1,
-    'name': 'Test Test',
-    'email': 'test@t.pl',
-    'password': 'password',
-  };
 
   final _loginEmail = TextEditingController();
   final _loginPassword = TextEditingController();
-  final _registerName = TextEditingController();
   final _registerEmail = TextEditingController();
   final _registerPassword = TextEditingController();
 
@@ -39,7 +33,6 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     _loginEmail.dispose();
     _loginPassword.dispose();
-    _registerName.dispose();
     _registerEmail.dispose();
     _registerPassword.dispose();
     super.dispose();
@@ -47,61 +40,111 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleLogin() async {
     setState(() => _error = '');
-    final email = _loginEmail.text.trim();
-    final pass = _loginPassword.text;
 
-    if (email == _mockUser['email'] && pass == _mockUser['password']) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('currentUser', jsonEncode(_mockUser));
-      widget.onLoginSuccess();
+    if (_loginEmail.text.trim().isEmpty) {
+      setState(() {
+        _error = 'Podaj nazwę użytkownika';
+      });
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('users') ?? '[]';
-    final users = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
-    final user = users.firstWhere(
-      (u) => u['email'] == email && u['password'] == pass,
-      orElse: () => const {},
-    );
+    if (_loginPassword.text.isEmpty) {
+      setState(() {
+        _error = 'Podaj hasło';
+      });
+      return;
+    }
 
-    if (user.isNotEmpty) {
-      await prefs.setString('currentUser', jsonEncode(user));
+    try {
+      final result = await ApiService.login(
+        username: _loginEmail.text.trim(),
+        password: _loginPassword.text,
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.setString(
+        'currentUser',
+        jsonEncode(result),
+      );
+
       widget.onLoginSuccess();
-    } else {
-      setState(() => _error = 'Nieprawidłowy email lub hasło');
+    } catch (e) {
+      final error = e.toString();
+
+      if (error.contains('INVALID_CREDENTIALS')) {
+        setState(() {
+          _error = 'Nieprawidłowa nazwa użytkownika lub hasło';
+        });
+      } else {
+        setState(() {
+          _error = 'Błąd logowania';
+        });
+      }
     }
   }
 
   Future<void> _handleRegister() async {
     setState(() => _error = '');
-    final name = _registerName.text.trim();
-    final email = _registerEmail.text.trim();
-    final pass = _registerPassword.text;
 
-    if (name.isEmpty || email.isEmpty || pass.isEmpty) {
-      setState(() => _error = 'Wszystkie pola są wymagane');
+    final username = _registerEmail.text.trim();
+    final password = _registerPassword.text;
+
+    if (username.isEmpty) {
+      setState(() {
+        _error = 'Podaj nazwę użytkownika';
+      });
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('users') ?? '[]';
-    final users = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
-    if (users.any((u) => u['email'] == email)) {
-      setState(() => _error = 'Użytkownik z tym emailem już istnieje');
+    if (password.isEmpty) {
+      setState(() {
+        _error = 'Podaj hasło';
+      });
       return;
     }
 
-    final newUser = {
-      'id': DateTime.now().millisecondsSinceEpoch,
-      'name': name,
-      'email': email,
-      'password': pass,
-    };
-    users.add(newUser);
-    await prefs.setString('users', jsonEncode(users));
-    await prefs.setString('currentUser', jsonEncode(newUser));
-    widget.onLoginSuccess();
+    if (password.length < 4) {
+      setState(() {
+        _error = 'Hasło musi mieć co najmniej 4 znaki';
+      });
+      return;
+    }
+
+    if (password.length < 4) {
+      setState(() {
+        _error = 'Hasło musi mieć co najmniej 4 znaki';
+      });
+      return;
+    }
+
+    try {
+      final result = await ApiService.register(
+        username: username,
+        password: password,
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.setString(
+        'currentUser',
+        jsonEncode(result),
+      );
+
+      widget.onLoginSuccess();
+    } catch (e) {
+        final error = e.toString();
+
+        if (error.contains('USER_EXISTS')) {
+          setState(() {
+            _error = 'Ta nazwa użytkownika jest już zajęta';
+          });
+        } else {
+          setState(() {
+            _error = 'Błąd rejestracji';
+          });
+        }
+      }
   }
 
   @override
@@ -164,9 +207,8 @@ class _LoginPageState extends State<LoginPage> {
     return [
       _IconInput(
         controller: _loginEmail,
-        hint: 'Email',
-        icon: Icons.mail_outline,
-        keyboardType: TextInputType.emailAddress,
+        hint: 'Nazwa użytkownika',
+        icon: Icons.person_outline,
       ),
       const SizedBox(height: 16),
       _IconInput(
@@ -198,16 +240,9 @@ class _LoginPageState extends State<LoginPage> {
   List<Widget> _buildRegisterForm() {
     return [
       _IconInput(
-        controller: _registerName,
-        hint: 'Imię i nazwisko',
-        icon: Icons.person_outline,
-      ),
-      const SizedBox(height: 16),
-      _IconInput(
         controller: _registerEmail,
-        hint: 'Email',
-        icon: Icons.mail_outline,
-        keyboardType: TextInputType.emailAddress,
+        hint: 'Nazwa użytkownika',
+        icon: Icons.person_outline,
       ),
       const SizedBox(height: 16),
       _IconInput(

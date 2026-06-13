@@ -62,10 +62,11 @@ class _AppRootState extends State<_AppRoot> {
   Future<void> _bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
     final hasUser = prefs.getString('currentUser') != null;
-    final paired = prefs.getBool('devicePaired') ?? false;
+    // Pomijamy ekran parowania BLE — jeśli jest zalogowany użytkownik,
+    // przechodzimy od razu do głównego ekranu.
     setState(() {
       if (hasUser) {
-        _state = paired ? _AppState.main : _AppState.bluetooth;
+        _state = _AppState.main;
       } else {
         _state = _AppState.login;
       }

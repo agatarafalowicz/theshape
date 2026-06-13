@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:ui';
+import '../services/api_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,24 +25,17 @@ class _MainPageState extends State<MainPage>
   bool _showGame = false;
 
   String _displayName = 'Graczu';
-  String _email = '';
+  int? _userId;
+  int? get userId => _userId;
+
+  Map<String, dynamic>? _stats;
+  Map<String, dynamic>? _weeklyStats;
+
+  List<dynamic> _leaderboard = [];
+
+  bool _loadingStats = true;
 
   late final AnimationController _pulse;
-
-  static const _currentUserStats = {'score': 5100, 'wins': 27};
-
-  static final List<_Friend> _mockFriends = [
-    _Friend(1, 'Anna K.', 'AK', 4820, 23,
-        const LinearGradient(colors: [AppColors.yellow400, Color(0xFFFB923C)])),
-    _Friend(2, 'Marek W.', 'MW', 4210, 19,
-        const LinearGradient(colors: [AppColors.gray300, AppColors.gray400])),
-    _Friend(3, 'Julia P.', 'JP', 3950, 17,
-        const LinearGradient(colors: [AppColors.amber500, AppColors.amber600])),
-    _Friend(4, 'Tomek R.', 'TR', 3400, 14,
-        const LinearGradient(colors: [AppColors.blue400, AppColors.blue500])),
-    _Friend(5, 'Kasia M.', 'KM', 2900, 11,
-        const LinearGradient(colors: [AppColors.purple400, AppColors.purple500])),
-  ];
 
   @override
   void initState() {
@@ -50,21 +44,72 @@ class _MainPageState extends State<MainPage>
       vsync: this,
       duration: const Duration(milliseconds: 1100),
     )..repeat(reverse: true);
-    _loadUser();
+    _loadUser().then((_) {
+      _loadStats();
+      _loadLeaderboard();
+      _loadWeeklyStats();
+    });
   }
 
   Future<void> _loadUser() async {
     final prefs = await SharedPreferences.getInstance();
+
     final raw = prefs.getString('currentUser');
+
     if (raw == null) return;
+
     try {
       final data = jsonDecode(raw) as Map<String, dynamic>;
+
       setState(() {
+        _userId = data['user_id'] as int?;
         _displayName =
-            (data['name'] as String?) ?? (data['email'] as String?) ?? 'Graczu';
-        _email = (data['email'] as String?) ?? '';
+            (data['user_name'] as String?) ?? 'Graczu';
       });
     } catch (_) {}
+  }
+
+  Future<void> _loadStats() async {
+    if (_userId == null) return;
+
+    try {
+      final stats = await ApiService.getStats(_userId!);
+
+      setState(() {
+        _stats = stats;
+        _loadingStats = false;
+      });
+    } catch (e) {
+      debugPrint('LOAD STATS ERROR: $e');
+
+      setState(() {
+        _loadingStats = false;
+      });
+    }
+  }
+
+  Future<void> _loadWeeklyStats() async {
+    if (_userId == null) return;
+    try {
+      final stats = await ApiService.getWeeklyStats(_userId!);
+      setState(() {
+        _weeklyStats = stats;
+      });
+    } catch (e) {
+      debugPrint('LOAD WEEKLY STATS ERROR: $e');
+    }
+  }
+
+  Future<void> _loadLeaderboard() async {
+    try {
+      final leaderboard = await ApiService.getLeaderboard();
+
+      setState(() {
+        _leaderboard = leaderboard;
+      });
+    } catch (e) {
+      debugPrint('LOAD LEADERBOARD ERROR: $e');
+    }
   }
 
   @override
@@ -119,7 +164,15 @@ class _MainPageState extends State<MainPage>
             ),
             if (_showGame)
               Positioned.fill(
-                child: GameScreen(onClose: () => setState(() => _showGame = false)),
+                child: GameScreen(
+                  userId: _userId,
+                  onGameFinished: () {
+                    _loadStats();
+                    _loadLeaderboard();
+                    _loadWeeklyStats();
+                  },
+                  onClose: () => setState(() => _showGame = false),
+                ),
               ),
           ],
         ),
@@ -239,12 +292,22 @@ class _MainPageState extends State<MainPage>
                 const SizedBox(height: 24),
                 Row(
                   children: [
-                    _statTile('${_currentUserStats['wins']}', 'Wygrane'),
+                    _statTile(
+                      '${_stats?['wins'] ?? 0}',
+                      'Wygrane',
+                    ),
                     const SizedBox(width: 12),
                     _statTile(
-                        _formatScore(_currentUserStats['score']!), 'Punkty'),
+                      _formatScore(
+                        (_stats?['rank']?['points'] ?? 0) as int,
+                      ),
+                      'Rekord',
+                    ),
                     const SizedBox(width: 12),
-                    _statTile('#1', 'Ranking'),
+                    _statTile(
+                      '#${_stats?['rank']?['rank'] ?? '-'}',
+                      'Ranking',
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -312,26 +375,31 @@ class _MainPageState extends State<MainPage>
   }
 
   Widget _buildHomeTab() {
-    final allRankings = <_RankItem>[
-      _RankItem(
-        name: _displayName,
-        avatar: _initials,
-        score: _currentUserStats['score']!,
-        wins: _currentUserStats['wins']!,
+
+
+    if (_loadingStats) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    final allRankings = _leaderboard.map((player) {
+      return _RankItem(
+        name: player['user_name'],
+        avatar: player['user_name']
+            .substring(0, 2)
+            .toUpperCase(),
+        score: player['points'],
+        won: player['won'] ?? false,
         gradient: const LinearGradient(
-          colors: [AppColors.indigo500, AppColors.purple600],
+          colors: [
+            AppColors.indigo500,
+            AppColors.purple600,
+          ],
         ),
-        isMe: true,
-      ),
-      ..._mockFriends.map((f) => _RankItem(
-            name: f.name,
-            avatar: f.avatar,
-            score: f.score,
-            wins: f.wins,
-            gradient: f.gradient,
-            isMe: false,
-          )),
-    ]..sort((a, b) => b.score.compareTo(a.score));
+        isMe: player['user_id'] == _userId,
+      );
+    }).toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
@@ -346,7 +414,7 @@ class _MainPageState extends State<MainPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Znajomi',
+                    const Text('Pozostali gracze',
                         style: TextStyle(
                             color: Colors.white,
                             fontSize: 24,
@@ -359,37 +427,6 @@ class _MainPageState extends State<MainPage>
                 ),
               ),
               const SizedBox(width: 12),
-              GestureDetector(
-                onTap: _openAddFriendDialog,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    gradient: AppColors.indigoPurpleGradient,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.purple500.withValues(alpha: 0.30),
-                        blurRadius: 18,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.person_add_alt_1,
-                          color: Colors.white, size: 16),
-                      SizedBox(width: 8),
-                      Text('Dodaj znajomych',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -397,7 +434,7 @@ class _MainPageState extends State<MainPage>
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text('Ranking znajomych',
+            child: Text('Ranking graczy',
                 style: TextStyle(color: AppColors.purple300, fontSize: 14)),
           ),
           for (int i = 0; i < allRankings.length; i++) ...[
@@ -407,7 +444,7 @@ class _MainPageState extends State<MainPage>
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text('Twoje statystyki vs. znajomi',
+            child: Text('Twoje statystyki vs. inni - ostatnie 7 dni',
                 style: TextStyle(color: AppColors.purple300, fontSize: 14)),
           ),
           _statsCard(),
@@ -417,7 +454,7 @@ class _MainPageState extends State<MainPage>
   }
 
   Widget _myPositionCard(List<_RankItem> ranks) {
-    final myRank = ranks.indexWhere((r) => r.isMe) + 1;
+    final myRank = _stats?['rank']?['rank'] as int?;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -475,7 +512,7 @@ class _MainPageState extends State<MainPage>
                       ],
                     ),
                     Text(
-                        '${_currentUserStats['wins']} wygranych · ${_formatScore(_currentUserStats['score']!)} pkt',
+                        '${_stats?['wins'] ?? 0} wygranych · rekord: ${_formatScore((_stats?['rank']?['points'] ?? 0) as int)} pkt',
                         style: TextStyle(
                             color: AppColors.purple300, fontSize: 12)),
                   ],
@@ -488,7 +525,7 @@ class _MainPageState extends State<MainPage>
                   color: AppColors.yellow400.withValues(alpha: 0.20),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text('#$myRank',
+                child: Text(myRank != null ? '#$myRank' : '-',
                     style: const TextStyle(
                         color: AppColors.yellow400,
                         fontSize: 18,
@@ -566,7 +603,7 @@ class _MainPageState extends State<MainPage>
                     ],
                   ],
                 ),
-                Text('${r.wins} wygranych',
+                Text(r.won ? 'Wygrana' : 'Przegrana',
                     style: TextStyle(
                         color: AppColors.purple400, fontSize: 12)),
               ],
@@ -591,11 +628,43 @@ class _MainPageState extends State<MainPage>
   }
 
   Widget _statsCard() {
-    final stats = const [
-      _Stat('Średnia wygrane/tydzień', 6.8, 4.2, ''),
-      _Stat('Najdłuższa seria', 8, 5, ''),
-      _Stat('Łączny czas gry (h)', 24, 16, 'h'),
+    if (_weeklyStats == null || _stats?['rank'] == null) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        ),
+        child: Center(
+          child: Text(
+            'Zagraj pierwszą grę, aby zobaczyć statystyki',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.purple300, fontSize: 13),
+          ),
+        ),
+      );
+    }
+
+    final winRateYou =
+        ((_weeklyStats!['win_rate']?['you'] ?? 0.0) as num).toDouble() * 100;
+    final winRateAvg =
+        ((_weeklyStats!['win_rate']?['avg'] ?? 0.0) as num).toDouble() * 100;
+    final avgPtsYou =
+        ((_weeklyStats!['avg_points']?['you'] ?? 0.0) as num).toDouble();
+    final avgPtsAvg =
+        ((_weeklyStats!['avg_points']?['avg'] ?? 0.0) as num).toDouble();
+    final playtimeYou =
+        ((_weeklyStats!['playtime']?['you'] ?? 0) as num).toDouble() / 60;
+    final playtimeAvg =
+        ((_weeklyStats!['playtime']?['avg'] ?? 0.0) as num).toDouble() / 60;
+
+    final stats = [
+      _Stat('Procent wygranych', winRateYou, winRateAvg, '%'),
+      _Stat('Średnia punktów', avgPtsYou, avgPtsAvg, ''),
+      _Stat('Czas gry', playtimeYou, playtimeAvg, 'min'),
     ];
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -615,7 +684,8 @@ class _MainPageState extends State<MainPage>
   }
 
   Widget _statBar(_Stat s) {
-    final ratio = (s.me / (s.me + s.avg)) * 1.3;
+    final sum = s.me + s.avg;
+    final ratio = sum == 0 ? 0.0 : (s.me / sum) * 1.3;
     final width = ratio.clamp(0.0, 1.0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -637,7 +707,7 @@ class _MainPageState extends State<MainPage>
                     text: '${_fmt(s.me)}${s.unit}',
                     style: const TextStyle(color: AppColors.yellow400),
                   ),
-                  TextSpan(text: ' · Śr.: ${_fmt(s.avg)}${s.unit}'),
+                  TextSpan(text: ' · Pozostali: ${_fmt(s.avg)}${s.unit}'),
                 ],
               ),
             ),
@@ -736,9 +806,6 @@ class _MainPageState extends State<MainPage>
                               color: Colors.white,
                               fontSize: 18,
                               fontWeight: FontWeight.w600)),
-                      Text(_email,
-                          style: TextStyle(
-                              color: AppColors.purple300, fontSize: 14)),
                       const SizedBox(height: 4),
                       Row(
                         children: [
@@ -850,7 +917,7 @@ class _MainPageState extends State<MainPage>
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _navItem(_Tab.game, Icons.sports_esports, 'Gra'),
-              _navItem(_Tab.home, Icons.home, 'Znajomi'),
+              _navItem(_Tab.home, Icons.home, 'Pozostali gracze'),
               _navItem(_Tab.settings, Icons.menu, 'Ustawienia'),
             ],
           ),
@@ -1147,14 +1214,14 @@ class _RankItem {
   final String name;
   final String avatar;
   final int score;
-  final int wins;
+  final bool won;
   final LinearGradient gradient;
   final bool isMe;
   const _RankItem({
     required this.name,
     required this.avatar,
     required this.score,
-    required this.wins,
+    required this.won,
     required this.gradient,
     required this.isMe,
   });

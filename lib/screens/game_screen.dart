@@ -16,11 +16,11 @@ import '../widgets/shape_widget.dart';
 const int kGestureWindowSize = 64;
 
 const Map<String, String> kMovementIdToLabel = {
-  'wave':       'Fala',
-  'waving':     'Machanie',
-  'circle_cw':  'Okrag_CW',
+  'wave': 'Fala',
+  'waving': 'Machanie',
+  'circle_cw': 'Okrag_CW',
   'circle_ccw': 'Okrag_CCW',
-  'up_down':    'Gora-dol',
+  'up_down': 'Gora-dol',
 };
 
 const int _totalRounds = 10;
@@ -207,9 +207,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       return;
     }
 
-    debugPrint(
-      'user=${widget.userId} score=$_score time=$_totalTimeUsed',
-    );
+    debugPrint('user=${widget.userId} score=$_score time=$_totalTimeUsed');
 
     try {
       await ApiService.saveGame(
@@ -309,41 +307,48 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     });
   }
 
-    Future<void> _checkGesture() async {
-     if (_isPredicting || _roundResult != _RoundResult.none) return;
+  Future<void> _checkGesture() async {
+    if (_isPredicting || _roundResult != _RoundResult.none) return;
 
-     final accCount = _localAccBuf.length;
-     final gyroCount = _localGyroBuf.length;
-     if (accCount < kGestureWindowSize || gyroCount < kGestureWindowSize) return;
+    final accCount = _localAccBuf.length;
+    final gyroCount = _localGyroBuf.length;
+    if (accCount < kGestureWindowSize || gyroCount < kGestureWindowSize) return;
 
-     setState(() => _isPredicting = true);
+    setState(() => _isPredicting = true);
 
-     final accSlice = _localAccBuf.sublist(accCount - kGestureWindowSize);
-     final gyroSlice = _localGyroBuf.sublist(gyroCount - kGestureWindowSize);
-     final points = List.generate(kGestureWindowSize, (i) => [
-       accSlice[i].x, accSlice[i].y, accSlice[i].z,
-       gyroSlice[i].x, gyroSlice[i].y, gyroSlice[i].z,
-     ]);
+    final accSlice = _localAccBuf.sublist(accCount - kGestureWindowSize);
+    final gyroSlice = _localGyroBuf.sublist(gyroCount - kGestureWindowSize);
+    final points = List.generate(
+      kGestureWindowSize,
+      (i) => [
+        accSlice[i].x,
+        accSlice[i].y,
+        accSlice[i].z,
+        gyroSlice[i].x,
+        gyroSlice[i].y,
+        gyroSlice[i].z,
+      ],
+    );
 
-      final expectedLabel =
-          kMovementIdToLabel[_gameShapes[_gameIdx].movement.id] ?? '';
-     setState(() => _expectedMovement = expectedLabel);
+    final expectedLabel =
+        kMovementIdToLabel[_gameShapes[_gameIdx].movement.id] ?? '';
+    setState(() => _expectedMovement = expectedLabel);
 
-     try {
-       final result = await ApiService.predictGesture(points);
-       final predicted = result['label'] as String;
-       setState(() => _lastPrediction = predicted);
-       if (mounted && _roundResult == _RoundResult.none) {
-         _advanceRound(predicted == expectedLabel);
-       }
-     } catch (_) {
-       if (mounted && _roundResult == _RoundResult.none) {
-         _advanceRound(false);
-       }
-     } finally {
-       if (mounted) setState(() => _isPredicting = false);
-     }
-   }
+    try {
+      final result = await ApiService.predictGesture(points);
+      final predicted = result['label'] as String;
+      setState(() => _lastPrediction = predicted);
+      if (mounted && _roundResult == _RoundResult.none) {
+        _advanceRound(predicted == expectedLabel);
+      }
+    } catch (_) {
+      if (mounted && _roundResult == _RoundResult.none) {
+        _advanceRound(false);
+      }
+    } finally {
+      if (mounted) setState(() => _isPredicting = false);
+    }
+  }
 
   void _restart() {
     setState(() {
@@ -918,65 +923,71 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           ),
           if (_roundResult == _RoundResult.none) ...[
             const SizedBox(height: 16),
-            Builder(builder: (context) {
-              final collected =
-                  min(_localAccBuf.length, _localGyroBuf.length);
-              final ready =
-                  collected >= kGestureWindowSize && !_isPredicting;
-              return GestureDetector(
-                onTap: ready ? _checkGesture : null,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 150),
-                  opacity: ready ? 1.0 : 0.5,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.20),
+            Builder(
+              builder: (context) {
+                final collected = min(
+                  _localAccBuf.length,
+                  _localGyroBuf.length,
+                );
+                final ready = collected >= kGestureWindowSize && !_isPredicting;
+                return GestureDetector(
+                  onTap: ready ? _checkGesture : null,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 150),
+                    opacity: ready ? 1.0 : 0.5,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.20),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isPredicting)
+                            const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          else
+                            Text(
+                              ready ? 'Zakończ ruch' : 'Czekam na dane...',
+                              style: TextStyle(
+                                color: AppColors.purple300,
+                                fontSize: 12,
+                              ),
+                            ),
+                          if (!_isPredicting)
+                            Icon(
+                              Icons.chevron_right,
+                              color: AppColors.purple300,
+                              size: 16,
+                            ),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_isPredicting)
-                          const SizedBox(
-                            width: 12,
-                            height: 12,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
-                          )
-                        else
-                          Text(
-                            ready
-                                ? 'Zakończ ruch'
-                                : 'Czekam na dane...',
-                            style: TextStyle(
-                              color: AppColors.purple300,
-                              fontSize: 12,
-                            ),
-                          ),
-                        if (!_isPredicting)
-                          Icon(
-                            Icons.chevron_right,
-                            color: AppColors.purple300,
-                            size: 16,
-                          ),
-                      ],
-                    ),
                   ),
-                ),
-              );
-            }),
+                );
+              },
+            ),
             const SizedBox(height: 12),
             GestureDetector(
               onTap: _connectAndStartIMU,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
@@ -998,7 +1009,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       )
                     else
                       Icon(
-                        _service.isRunning ? Icons.bluetooth_connected : Icons.sensors,
+                        _service.isRunning
+                            ? Icons.bluetooth_connected
+                            : Icons.sensors,
                         color: AppColors.purple300,
                         size: 16,
                       ),
@@ -1107,9 +1120,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Opacity(
-                    opacity: _score >= const [5, 7, 10][i]
-                        ? 1
-                        : 0.2,
+                    opacity: _score >= const [5, 7, 10][i] ? 1 : 0.2,
                     child: const Text('⭐', style: TextStyle(fontSize: 24)),
                   ),
                 ),
@@ -1300,343 +1311,564 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
   }
 
-    Widget _sensorInitBar() {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: _showPairingDialog,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    gradient: AppColors.ctaGradient,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                        if (_isInitializingSensor)
-                        const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      else
-                        const Icon(Icons.sensors, color: Colors.white, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        _connected
-                            ? 'Czujnik: połączony${_rememberedDeviceName != null ? ' • $_rememberedDeviceName' : ''}'
-                            : (_service.isRunning
+  Widget _sensorInitBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: _showPairingDialog,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  gradient: AppColors.ctaGradient,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (_isInitializingSensor)
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    else
+                      const Icon(Icons.sensors, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      _connected
+                          ? 'Czujnik: połączony${_rememberedDeviceName != null ? ' • $_rememberedDeviceName' : ''}'
+                          : (_service.isRunning
                                 ? 'Czujnik: aktywny${_rememberedDeviceName != null ? ' • $_rememberedDeviceName' : ''}'
                                 : 'Uruchom czujnik BLE'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
-      );
-    }
+          ),
+        ],
+      ),
+    );
+  }
 
-      Future<void> _showPairingDialog() async {
-        if (_isInitializingSensor) return;
-        setState(() => _isInitializingSensor = true);
+  Future<void> _showPairingDialog() async {
+    if (_isInitializingSensor) return;
+    setState(() => _isInitializingSensor = true);
 
-        final devices = <Map<String, dynamic>>[];
-            StreamSubscription? sub;
+    final devices = <Map<String, dynamic>>[];
+    StreamSubscription? sub;
 
-        await showDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) {
-            return StatefulBuilder(builder: (c, setStateDialog) {
-              // start scan when dialog builds
-              sub = FlutterBluePlus.scanResults.listen((results) {
-                for (final r in results) {
-                  final name = r.device.platformName;
-                  final uuids = r.advertisementData.serviceUuids
-                      .map((u) => u.toString().toLowerCase())
-                      .toList();
-                  final isMetaWear = name.toLowerCase().contains('metawear') ||
-                      name.toLowerCase().contains('metamotion') ||
-                      uuids.contains(kServiceUuid.toLowerCase());
-                  if (!isMetaWear) continue;
-                  final id = r.device.remoteId.str;
-                  if (devices.any((d) => d['id'] == id)) continue;
-                  setStateDialog(() {
-                    devices.add({'id': id, 'name': name.isEmpty ? 'MetaWear ($id)' : name, 'rssi': r.rssi});
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (c, setStateDialog) {
+            // start scan when dialog builds
+            sub = FlutterBluePlus.scanResults.listen((results) {
+              for (final r in results) {
+                final name = r.device.platformName;
+                final uuids = r.advertisementData.serviceUuids
+                    .map((u) => u.toString().toLowerCase())
+                    .toList();
+                final isMetaWear =
+                    name.toLowerCase().contains('metawear') ||
+                    name.toLowerCase().contains('metamotion') ||
+                    uuids.contains(kServiceUuid.toLowerCase());
+                if (!isMetaWear) continue;
+                final id = r.device.remoteId.str;
+                if (devices.any((d) => d['id'] == id)) continue;
+                setStateDialog(() {
+                  devices.add({
+                    'id': id,
+                    'name': name.isEmpty ? 'MetaWear ($id)' : name,
+                    'rssi': r.rssi,
                   });
-                }
-              });
+                });
+              }
+            });
 
-              // Request permissions and start scan
-              () async {
-                if (Platform.isAndroid) {
-                  await [
-                    Permission.bluetoothScan,
-                    Permission.bluetoothConnect,
-                    Permission.locationWhenInUse,
-                  ].request();
-                } else if (Platform.isIOS) {
-                  final bt = await Permission.bluetooth.request();
-                  if (bt.isDenied || bt.isPermanentlyDenied) return;
-                }
-                devices.clear();
-                await FlutterBluePlus.stopScan();
-                await FlutterBluePlus.startScan(withServices: [Guid(kServiceUuid)], timeout: const Duration(seconds: 12));
-              }();
+            // Request permissions and start scan
+            () async {
+              if (Platform.isAndroid) {
+                await [
+                  Permission.bluetoothScan,
+                  Permission.bluetoothConnect,
+                  Permission.location,
+                ].request();
+              } else if (Platform.isIOS) {
+                final bt = await Permission.bluetooth.request();
+                if (bt.isDenied || bt.isPermanentlyDenied) return;
+              }
+              devices.clear();
+              await FlutterBluePlus.stopScan();
+              await FlutterBluePlus.startScan(
+                withServices: [Guid(kServiceUuid)],
+                timeout: const Duration(seconds: 12),
+              );
+            }();
 
-              return AlertDialog(
-                title: const Text('Wybierz MetaWear'),
-                content: SizedBox(
-                  width: double.maxFinite,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (devices.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20),
-                          child: Text('Skanowanie...'),
+            return AlertDialog(
+              backgroundColor: const Color(0xFF17132A),
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              title: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: AppColors.ctaGradient,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.bluetooth_searching,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Połącz z MetaWear',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      if (devices.isNotEmpty)
-                        Flexible(
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: devices.length,
-                            itemBuilder: (context, i) {
-                              final d = devices[i];
-                              return ListTile(
-                                title: Text(d['name']),
-                                subtitle: Text('${Platform.isIOS ? 'UUID' : 'MAC'}: ${d['id']} — ${d['rssi']} dBm'),
+                        SizedBox(height: 2),
+                        Text(
+                          'Wybierz urządzenie i uruchom czujnik dla tej gry.',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          RotationTransition(
+                            turns: _pulse,
+                            child: const Icon(
+                              Icons.radar,
+                              color: AppColors.yellow400,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Skanuję BLE i szukam MetaWear w pobliżu.',
+                              style: TextStyle(
+                                color: AppColors.purple200,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (devices.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 22,
+                          horizontal: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.08),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            const Icon(
+                              Icons.bluetooth_disabled,
+                              color: Colors.white54,
+                              size: 28,
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Skanowanie...',
+                              style: TextStyle(
+                                color: AppColors.purple300,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Jeśli urządzenie jest włączone, pojawi się tu po chwili.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.purple200,
+                                fontSize: 11,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (devices.isNotEmpty)
+                      Flexible(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: devices.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, i) {
+                            final d = devices[i];
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.10),
+                                ),
+                              ),
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 4,
+                                ),
+                                leading: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.purple500.withValues(
+                                      alpha: 0.20,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.sensors,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                                title: Text(
+                                  d['name'],
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  '${Platform.isIOS ? 'UUID' : 'MAC'}: ${d['id']}\n${d['rssi']} dBm',
+                                  style: TextStyle(
+                                    color: AppColors.purple200,
+                                    fontSize: 11,
+                                    height: 1.2,
+                                  ),
+                                ),
+                                isThreeLine: true,
                                 trailing: ElevatedButton(
                                   onPressed: () async {
                                     try {
                                       await FlutterBluePlus.stopScan();
                                       await sub?.cancel();
-                                      // connect
-                                      await _service.connect(d['id']);
+
+                                      await Future.delayed(
+                                        const Duration(milliseconds: 500),
+                                      );
+
+                                      int attempts = 0;
+                                      const int maxRetries = 3;
+                                      bool isConnected = false;
+
+                                      while (!isConnected &&
+                                          attempts < maxRetries) {
+                                        try {
+                                          attempts++;
+                                          await _service.connect(d['id']);
+                                          isConnected = true;
+                                        } catch (e) {
+                                          if (attempts >= maxRetries) {
+                                            rethrow;
+                                          }
+                                          await Future.delayed(
+                                            const Duration(milliseconds: 500),
+                                          );
+                                        }
+                                      }
                                       await _service.initializeBoard();
                                       await _service.startIMU();
-                                      final prefs = await SharedPreferences.getInstance();
-                                      await prefs.setString('selectedDevice', d['id']);
-                                       await prefs.setString('selectedDeviceName', d['name']);
-                                       if (mounted) {
-                                         setState(() {
-                                           _rememberedDeviceId = d['id'];
-                                           _rememberedDeviceName = d['name'] as String?;
-                                         });
-                                       }
+                                      final prefs =
+                                          await SharedPreferences.getInstance();
+                                      await prefs.setString(
+                                        'selectedDevice',
+                                        d['id'],
+                                      );
+                                      await prefs.setString(
+                                        'selectedDeviceName',
+                                        d['name'] as String,
+                                      );
+                                      if (mounted) {
+                                        setState(() {
+                                          _rememberedDeviceId = d['id'];
+                                          _rememberedDeviceName =
+                                              d['name'] as String;
+                                        });
+                                      }
                                       if (!mounted) return;
-                                      Navigator.of(context, rootNavigator: true).pop();
+                                      Navigator.of(
+                                        context,
+                                        rootNavigator: true,
+                                      ).pop();
                                     } catch (e) {
                                       if (!mounted) return;
-                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Błąd połączenia: $e')));
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Błąd połączenia: $e'),
+                                        ),
+                                      );
                                     }
                                   },
                                   child: const Text('Połącz'),
                                 ),
-                              );
-                            },
-                          ),
+                              ),
+                            );
+                          },
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () async {
-                      await FlutterBluePlus.stopScan();
-                      await sub?.cancel();
-                      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-                    },
-                    child: const Text('Anuluj'),
-                  ),
-                ],
-              );
-            });
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    await FlutterBluePlus.stopScan();
+                    await sub?.cancel();
+                    if (mounted)
+                      Navigator.of(context, rootNavigator: true).pop();
+                  },
+                  child: const Text('Anuluj'),
+                ),
+              ],
+            );
           },
         );
+      },
+    );
 
-        await FlutterBluePlus.stopScan();
-        await sub?.cancel();
-        if (mounted) setState(() => _isInitializingSensor = false);
-      }
+    await FlutterBluePlus.stopScan();
+    await sub?.cancel();
+    if (mounted) setState(() => _isInitializingSensor = false);
+  }
 
-    Widget _sensorDataPanel() {
-     return Container(
-       decoration: BoxDecoration(
-         color: Colors.black.withValues(alpha: 0.30),
-         border: Border(
-           top: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
-         ),
-       ),
-       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-       child: SingleChildScrollView(
-         scrollDirection: Axis.horizontal,
-         child: Row(
-           children: [
-             // Akcelerometr
-             _sensorCell(
-               title: 'ACC',
-               emoji: '📍',
-               x: _lastAcc?.x ?? 0,
-               y: _lastAcc?.y ?? 0,
-               z: _lastAcc?.z ?? 0,
-             ),
-             const SizedBox(width: 8),
-             // Żyroskop
-             _sensorCell(
-               title: 'GYRO',
-               emoji: '🔄',
-               x: _lastGyro?.x ?? 0,
-               y: _lastGyro?.y ?? 0,
-               z: _lastGyro?.z ?? 0,
-             ),
-             const SizedBox(width: 8),
-             // Predykcja
-             if (_lastPrediction != null || _expectedMovement != null)
-               Container(
-                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                 decoration: BoxDecoration(
-                   color: Colors.white.withValues(alpha: 0.08),
-                   borderRadius: BorderRadius.circular(8),
-                   border: Border.all(
-                     color: Colors.white.withValues(alpha: 0.15),
-                   ),
-                 ),
-                 child: Column(
-                   mainAxisSize: MainAxisSize.min,
-                   children: [
-                     Text(
-                       'Predykcja 🎯',
-                       style: TextStyle(
-                         color: AppColors.purple300,
-                         fontSize: 10,
-                         fontWeight: FontWeight.w600,
-                       ),
-                     ),
-                     const SizedBox(height: 2),
-                     Text(
-                       _lastPrediction ?? '—',
-                       style: TextStyle(
-                         color: AppColors.yellow400,
-                         fontSize: 11,
-                         fontWeight: FontWeight.w600,
-                       ),
-                     ),
-                     if (_expectedMovement != null) ...[
-                       const SizedBox(height: 2),
-                       Text(
-                         'oczek: $_expectedMovement',
-                         style: TextStyle(
-                           color: Colors.white.withValues(alpha: 0.6),
-                           fontSize: 9,
-                         ),
-                       ),
-                     ],
-                      const SizedBox(height: 4),
-                      if (_serviceLog.isNotEmpty)
-                        Text(
-                          _serviceLog,
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 9),
+  Widget _sensorDataPanel() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.black.withValues(alpha: 0.30),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
+        ),
+      ),
+      padding: const EdgeInsets.all(8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            // Akcelerometr
+            _sensorCell(
+              title: 'ACC',
+              emoji: '📍',
+              x: _lastAcc?.x ?? 0,
+              y: _lastAcc?.y ?? 0,
+              z: _lastAcc?.z ?? 0,
+            ),
+            const SizedBox(width: 8),
+            // Żyroskop
+            _sensorCell(
+              title: 'GYRO',
+              emoji: '🔄',
+              x: _lastGyro?.x ?? 0,
+              y: _lastGyro?.y ?? 0,
+              z: _lastGyro?.z ?? 0,
+            ),
+            // Predykcja
+            if (_lastPrediction != null || _expectedMovement != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Predykcja 🎯',
+                      style: TextStyle(
+                        color: AppColors.purple300,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _lastPrediction ?? '—',
+                      style: TextStyle(
+                        color: AppColors.yellow400,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (_expectedMovement != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'oczek: $_expectedMovement',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          fontSize: 9,
                         ),
-                   ],
-                 ),
-               ),
-           ],
-         ),
-       ),
-     );
-   }
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    if (_serviceLog.isNotEmpty)
+                      Text(
+                        _serviceLog,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          fontSize: 9,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
-    void _skipTutorial() {
-      _learnTimer?.cancel();
-      _bravoTimer?.cancel();
-      setState(() {
-        _learnIdx = _shapes.length - 1;
-        _phase = _Phase.ready;
-      });
-    }
+  void _skipTutorial() {
+    _learnTimer?.cancel();
+    _bravoTimer?.cancel();
+    setState(() {
+      _learnIdx = _shapes.length - 1;
+      _phase = _Phase.ready;
+    });
+  }
 
-   Widget _sensorCell({
-     required String title,
-     required String emoji,
-     required double x,
-     required double y,
-     required double z,
-   }) {
-     return Container(
-       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-       decoration: BoxDecoration(
-         color: Colors.white.withValues(alpha: 0.08),
-         borderRadius: BorderRadius.circular(8),
-         border: Border.all(
-           color: Colors.white.withValues(alpha: 0.15),
-         ),
-       ),
-       child: Column(
-         mainAxisSize: MainAxisSize.min,
-         crossAxisAlignment: CrossAxisAlignment.start,
-         children: [
-           Text(
-             '$emoji $title',
-             style: TextStyle(
-               color: AppColors.purple300,
-               fontSize: 10,
-               fontWeight: FontWeight.w600,
-             ),
-           ),
-           const SizedBox(height: 3),
-           Text(
-             'X: ${x.toStringAsFixed(2)}',
-             style: const TextStyle(
-               color: AppColors.yellow400,
-               fontSize: 10,
-             ),
-           ),
-           Text(
-             'Y: ${y.toStringAsFixed(2)}',
-             style: const TextStyle(
-               color: AppColors.yellow400,
-               fontSize: 10,
-             ),
-           ),
-           Text(
-             'Z: ${z.toStringAsFixed(2)}',
-             style: const TextStyle(
-               color: AppColors.yellow400,
-               fontSize: 10,
-             ),
-           ),
-         ],
-       ),
-     );
-   }
+  Widget _sensorCell({
+    required String title,
+    required String emoji,
+    required double x,
+    required double y,
+    required double z,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$emoji $title',
+            style: TextStyle(
+              color: AppColors.purple300,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            'X: ${x.toStringAsFixed(2)}',
+            style: const TextStyle(color: AppColors.yellow400, fontSize: 10),
+          ),
+          Text(
+            'Y: ${y.toStringAsFixed(2)}',
+            style: const TextStyle(color: AppColors.yellow400, fontSize: 10),
+          ),
+          Text(
+            'Z: ${z.toStringAsFixed(2)}',
+            style: const TextStyle(color: AppColors.yellow400, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
 
-   Widget _pulseDot(Color color) {
-     return AnimatedBuilder(
-       animation: _pulse,
-       builder: (context, child) => Container(
-         width: 8,
-         height: 8,
-         decoration: BoxDecoration(
-           color: color.withValues(alpha: 0.5 + 0.5 * _pulse.value),
-           shape: BoxShape.circle,
-         ),
-       ),
-     );
-   }
- }
+  Widget _pulseDot(Color color) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, child) => Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.5 + 0.5 * _pulse.value),
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+}

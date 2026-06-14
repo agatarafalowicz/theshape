@@ -64,8 +64,7 @@ class _MainPageState extends State<MainPage>
 
       setState(() {
         _userId = data['user_id'] as int?;
-        _displayName =
-            (data['user_name'] as String?) ?? 'Graczu';
+        _displayName = (data['user_name'] as String?) ?? 'Graczu';
         _connectedDeviceName = prefs.getString('selectedDeviceName');
       });
     } catch (_) {}
@@ -418,15 +417,22 @@ class _MainPageState extends State<MainPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Inni gracze',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600)),
-                    Text('Rywalizuj z innymi',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: AppColors.purple300, fontSize: 14)),
+                    const Text(
+                      'Inni gracze',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      'Rywalizuj z innymi',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.purple300,
+                        fontSize: 14,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -450,8 +456,10 @@ class _MainPageState extends State<MainPage>
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text('Tygodniowe porównanie wyników',
-                style: TextStyle(color: AppColors.purple300, fontSize: 14)),
+            child: Text(
+              'Tygodniowe porównanie wyników',
+              style: TextStyle(color: AppColors.purple300, fontSize: 14),
+            ),
           ),
           _statsCard(),
         ],
@@ -530,9 +538,12 @@ class _MainPageState extends State<MainPage>
                       ],
                     ),
                     Text(
-                        '${_stats?['wins'] ?? 0} wygranych',
-                        style: TextStyle(
-                            color: AppColors.purple300, fontSize: 12)),
+                      '${_stats?['wins'] ?? 0} wygranych',
+                      style: TextStyle(
+                        color: AppColors.purple300,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -696,10 +707,10 @@ class _MainPageState extends State<MainPage>
         .toDouble();
     final avgPtsAvg = ((_weeklyStats!['avg_points']?['avg'] ?? 0.0) as num)
         .toDouble();
-    final playtimeYou =
-        ((_weeklyStats!['playtime']?['you'] ?? 0) as num).toDouble();
-    final playtimeAvg =
-        ((_weeklyStats!['playtime']?['avg'] ?? 0.0) as num).toDouble();
+    final playtimeYou = ((_weeklyStats!['playtime']?['you'] ?? 0) as num)
+        .toDouble();
+    final playtimeAvg = ((_weeklyStats!['playtime']?['avg'] ?? 0.0) as num)
+        .toDouble();
 
     final stats = [
       _Stat('Wygrane', winRateYou, winRateAvg, '%', _StatType.winRate),
@@ -805,7 +816,11 @@ class _MainPageState extends State<MainPage>
 
   Widget _buildSettingsTab() {
     final items = [
-      _SettingItem('Urządzenie', _connectedDeviceName ?? 'Brak połączenia', '📡'),
+      _SettingItem(
+        'Urządzenie',
+        _connectedDeviceName ?? 'Brak połączenia',
+        '📡',
+      ),
       const _SettingItem('Język aplikacji', 'Polski', '🌐'),
     ];
 
@@ -814,13 +829,18 @@ class _MainPageState extends State<MainPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Profil',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600)),
-          Text('Twoje dane',
-              style: TextStyle(color: AppColors.purple300, fontSize: 14)),
+          const Text(
+            'Profil',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            'Twoje dane',
+            style: TextStyle(color: AppColors.purple300, fontSize: 14),
+          ),
           const SizedBox(height: 32),
           Container(
             padding: const EdgeInsets.all(20),
@@ -930,9 +950,6 @@ class _MainPageState extends State<MainPage>
                         fontSize: 14,
                       ),
                     ),
-                    Text(item.value,
-                        style: TextStyle(
-                            color: AppColors.purple300, fontSize: 14)),
                   ],
                 ),
               ),

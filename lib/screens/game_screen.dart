@@ -65,7 +65,7 @@ List<_Pair> _buildMapping() {
   return List<_Pair>.generate(_shapes.length, (i) => _Pair(_shapes[i], mov[i]));
 }
 
-enum _Phase { learning, bravo, ready, playing, finished }
+enum _Phase { intro, learning, bravo, ready, playing, finished }
 
 enum _RoundResult { none, correct, incorrect }
 
@@ -87,7 +87,7 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   late List<_Pair> _mapping;
-  _Phase _phase = _Phase.learning;
+  _Phase _phase = _Phase.intro;
   int _learnIdx = 0;
 
   List<_Pair> _gameShapes = [];
@@ -132,7 +132,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 1100),
     )..repeat(reverse: true);
-    _scheduleLearningAdvance();
     _accSub = _service.accStream.listen((s) {
       setState(() => _lastAcc = s);
       if (_phase == _Phase.playing) _localAccBuf.add(s);
@@ -355,7 +354,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     setState(() {
       _mapping = _buildMapping();
       _learnIdx = 0;
-      _phase = _Phase.learning;
+      _phase = _Phase.intro;
       _score = 0;
       _roundResult = _RoundResult.none;
       _totalTimeUsed = 0;
@@ -363,7 +362,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _lastPrediction = null;
       _expectedMovement = null;
     });
-    _scheduleLearningAdvance();
   }
 
   @override
@@ -394,7 +392,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   Widget _topBar() {
     Widget center;
-    if (_phase == _Phase.learning || _phase == _Phase.bravo) {
+    if (_phase == _Phase.intro) {
+      center = const SizedBox.shrink();
+    } else if (_phase == _Phase.learning || _phase == _Phase.bravo) {
       center = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -509,6 +509,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   Widget _content() {
     switch (_phase) {
+      case _Phase.intro:
+        return _introContent();
       case _Phase.learning:
       case _Phase.bravo:
         return _learningContent();
@@ -519,6 +521,113 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       case _Phase.finished:
         return _finishedContent();
     }
+  }
+
+  Widget _introContent() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Column(
+        children: [
+          const SizedBox(height: 24),
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              gradient: AppColors.ctaGradient,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.orange500.withValues(alpha: 0.30),
+                  blurRadius: 22,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.gavel, color: Colors.white, size: 40),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Zanim zaczniesz',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Najpierw pokażemy Ci 5 kształtów i przypisane im ruchy czujnika. Zapamiętaj je - przydadzą się w grze!',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.purple300, fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: () {
+              setState(() => _phase = _Phase.learning);
+              _scheduleLearningAdvance();
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                gradient: AppColors.ctaGradient,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.orange500.withValues(alpha: 0.30),
+                    blurRadius: 22,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.play_arrow, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Zobacz samouczek',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => setState(() => _phase = _Phase.ready),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.skip_next, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Pomiń samouczek',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _learningContent() {

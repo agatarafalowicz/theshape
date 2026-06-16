@@ -13,7 +13,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../app_theme.dart';
 import '../widgets/shape_widget.dart';
 
-const int kGestureWindowSize = 64;
+const int kGestureWindowSize = 100;
 
 const Map<String, String> kMovementIdToLabel = {
   'wave': 'Fala',
